@@ -65,7 +65,7 @@ int app_port_init(app_port_t *port, const app_config_t *config) {
         return -1;
     }
 
-    ret = rte_eth_dev_rx_queue_setup(
+    ret = rte_eth_rx_queue_setup(
         port->port_id,
         port->rx_queue_id,
         RX_DESC_COUNT,
@@ -79,7 +79,7 @@ int app_port_init(app_port_t *port, const app_config_t *config) {
         return ret;
     }
 
-    ret = rte_eth_dev_tx_queue_setup(
+    ret = rte_eth_tx_queue_setup(
         port->port_id,
         port->tx_queue_id,
         TX_DESC_COUNT,

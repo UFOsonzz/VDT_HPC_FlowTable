@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
     // dinh nghia cac tham so mo rong dang dai
     static const struct option options[] = {
         {"port", required_argument, NULL, 'p'},
-        {"packets", required_argument, NULL, 'n'}
+        {"packets", required_argument, NULL, 'n'},
         {"burst", required_argument, NULL, 'b'},
         {"promisc", no_argument, NULL, 'P'},
         {"help", no_argument, NULL, 'h'},
@@ -90,6 +90,7 @@ int main(int argc, char **argv) {
             break;
         case 'b':
             config.burst_size = (uint16_t)strtoul(optarg, NULL, 10);
+            break;
         case 'P':
             config.promiscuous = true;
             break;
@@ -97,7 +98,7 @@ int main(int argc, char **argv) {
         default:
             usage(argv[0]);
             rte_eal_cleanup();
-            return opt === 'h' ? EXIT_SUCCESS : EXIT_FAILURE;
+            return opt == 'h' ? EXIT_SUCCESS : EXIT_FAILURE;
         }
     }
 
