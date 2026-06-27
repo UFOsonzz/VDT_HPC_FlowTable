@@ -1,4 +1,5 @@
 #include "rx_loop.h"
+#include "ft_packet.h"
 
 #include <inttypes.h>
 #include <stdio.h>
@@ -39,14 +40,37 @@ int app_rx_loop(const app_port_t *port, const app_config_t *config) {
 
         for (uint16_t i = 0; i < nb_rx; i++) {
             struct rte_mbuf *mbuf = mbufs[i];
-            uint32_t packet_len = rte_pktmbuf_pkt_len(mbuf);
-
+            ft_packet_t packet;
+            
             received_total++;
+            if (ft_packet_parse_mbuf(mbuf, &packet) != 0) {
+                printf("packet=%" PRIu64 " parse=FAILED len=%u\n",
+                        received_total,
+                        rte_pktmbuf_pkt_len(mbuf));
+                rte_pktmbuf_free(mbuf);
+                continue;
+            }
 
-            printf("packet=%" PRIu64 " len=%u port=%u\n",
-                    received_total,
-                    packet_len,
-                    port->port_id);
+            printf("packet=%" PRIu64
+                " len=%u vlan=%u proto=%u "
+                "src=%u.%u.%u.%u:%u "
+                "dst=%u.%u.%u.%u:%u\n",
+                received_total,
+                packet.packet_len,
+                packet.vlan_id,
+                packet.protocol,
+
+                (packet.src_ip >> 24) & 0xff,
+                (packet.src_ip >> 16) & 0xff,
+                (packet.src_ip >> 8) & 0xff,
+                packet.src_ip & 0xff,
+                packet.src_port,
+
+                (packet.dst_ip >> 24) & 0xff,
+                (packet.dst_ip >> 16) & 0xff,
+                (packet.dst_ip >> 8) & 0xff,
+                packet.dst_ip & 0xff,
+                packet.dst_port);
             
             rte_pktmbuf_free(mbuf); // xu ly xong free tranh mem leak
             if (config->max_packets != 0 && received_total >= config->max_packets)

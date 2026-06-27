@@ -14,7 +14,8 @@ TARGET := $(BUILD_DIR)/rx_demo
 SOURCES := \
 	src/main.c \
 	src/port.c \
-	src/rx_loop.c
+	src/rx_loop.c \
+	src/packet.c 
 
 .PHONY: all clean
 
