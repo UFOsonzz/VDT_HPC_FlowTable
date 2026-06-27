@@ -37,7 +37,7 @@ offset = 0          offset = 14             offset = 18          offset = 18 + i
     packet->ingress_port = FT_INGRESS_PORT_UNKNOWN;
 
     // kiem tra packet co ethernet header ko
-    if (rte_pktmbuf_pktlen(mbuf) < sizeof(*ether))
+    if (rte_pktmbuf_pkt_len(mbuf) < sizeof(*ether))
         return -1;
 
     // lay ethernet header 
@@ -65,7 +65,7 @@ offset = 0          offset = 14             offset = 18          offset = 18 + i
             offset
         );
         packet->vlan_id = rte_be_to_cpu_16(vlan->vlan_tci) & 0x0fff;
-        ether_type = rte_to_be_cpu_16(vlan->eth_proto);
+        ether_type = rte_be_to_cpu_16(vlan->eth_proto);
         offset += sizeof(*vlan);
     }
 
@@ -123,7 +123,7 @@ offset = 0          offset = 14             offset = 18          offset = 18 + i
             mbuf,
             const struct rte_udp_hdr *,
             offset
-        )
+        );
         packet->src_port = rte_be_to_cpu_16(udp->src_port);
         packet->dst_port = rte_be_to_cpu_16(udp->dst_port);
     }
