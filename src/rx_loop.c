@@ -1,4 +1,5 @@
 #include "rx_loop.h"
+#include "ft_config.h"
 #include "ft_packet.h"
 
 #include <inttypes.h>
@@ -16,6 +17,12 @@ int app_rx_loop(const app_port_t *port, const app_config_t *config) {
 
     if (config->burst_size == 0 || config->burst_size > MAX_BURST_SIZE) {
         fprintf(stderr, "Invalid burst size=%u\n", config->burst_size);
+        return -1;
+    }
+
+    ft_direction_config_t directions;
+    if (ft_direction_config_load(&directions, "config/direction_rules.csv") != 0) {
+        fprintf(stderr, "Cannot load direction_rules.csv\n");
         return -1;
     }
 
@@ -75,9 +82,48 @@ int app_rx_loop(const app_port_t *port, const app_config_t *config) {
             rte_pktmbuf_free(mbuf); // xu ly xong free tranh mem leak
             if (config->max_packets != 0 && received_total >= config->max_packets)
                 break;
+            
+            ft_normalized_flow_t flow;
+            packet.ingress_port = port->port_id;
+            ft_packet_normalize(&packet, &directions, &flow);
+            
+            printf("raw five-tuple: "
+                "src=%u.%u.%u.%u:%u "
+                "dst=%u.%u.%u.%u:%u "
+                "proto=%u\n",
+                (packet.src_ip >> 24) & 0xff,
+                (packet.src_ip >> 16) & 0xff,
+                (packet.src_ip >> 8) & 0xff,
+                packet.src_ip & 0xff,
+                packet.src_port,
+                (packet.dst_ip >> 24) & 0xff,
+                (packet.dst_ip >> 16) & 0xff,
+                (packet.dst_ip >> 8) & 0xff,
+                packet.dst_ip & 0xff,
+                packet.dst_port,
+                packet.protocol);
+
+            printf("canonical flow-key: "
+                "tenant=%u direction=%u "
+                "client=%u.%u.%u.%u:%u "
+                "server=%u.%u.%u.%u:%u "
+                "proto=%u\n",
+                flow.key.tenant_id,
+                flow.direction,
+                (flow.key.client_ip >> 24) & 0xff,
+                (flow.key.client_ip >> 16) & 0xff,
+                (flow.key.client_ip >> 8) & 0xff,
+                flow.key.client_ip & 0xff,
+                flow.key.client_port,
+                (flow.key.server_ip >> 24) & 0xff,
+                (flow.key.server_ip >> 16) & 0xff,
+                (flow.key.server_ip >> 8) & 0xff,
+                flow.key.server_ip & 0xff,
+                flow.key.server_port,
+                flow.key.protocol);
         }
     }
 
-    printf("RX finished: received=%", PRIu64 "\n", received_total);
+    printf("RX finished: received=%" PRIu64 "\n", received_total);
     return 0;
 }

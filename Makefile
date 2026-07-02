@@ -15,7 +15,8 @@ SOURCES := \
 	src/main.c \
 	src/port.c \
 	src/rx_loop.c \
-	src/packet.c 
+	src/packet.c \
+	src/config.c
 
 .PHONY: all clean
 
