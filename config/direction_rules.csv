@@ -1,0 +1,5 @@
+match_type,value,tenant_id,direction
+SRC_PREFIX,10.0.0.0/8,1,UPLINK
+DST_PREFIX,10.0.0.0/8,1,DOWNLINK
+VLAN,100,1,UPLINK
+VLAN,200,1,DOWNLINK
