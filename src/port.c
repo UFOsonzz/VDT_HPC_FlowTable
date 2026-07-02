@@ -30,7 +30,17 @@ int app_port_init(app_port_t *port, const app_config_t *config) {
     port->tx_queue_id = config->tx_queue_id;
 
     if (!rte_eth_dev_is_valid_port(port->port_id)) {
-        fprintf(stderr, "invalid dpdk port_id=%u\n", port->port_id);
+        uint16_t nb_ports = rte_eth_dev_count_avail();
+
+        fprintf(stderr,
+                "invalid dpdk port_id=%u (available DPDK ports: %u)\n",
+                port->port_id,
+                nb_ports);
+        if (nb_ports == 0) {
+            fprintf(stderr,
+                    "No DPDK ethdev is available. For a real NIC, bind or allowlist a DPDK-compatible device; "
+                    "for pcap input, use the net_pcap vdev script.\n");
+        }
         return -1;
     }
 
