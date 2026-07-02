@@ -132,3 +132,67 @@ offset = 0          offset = 14             offset = 18          offset = 18 + i
     packet->mbuf = mbuf;
     return 0;
 }
+
+static int endpoint_compare(uint32_t ip_a, uint16_t port_a, uint32_t ip_b, uint16_t port_b){
+    if (ip_a < ip_b)
+        return -1;
+    if (ip_a > ip_b)
+        return 1;
+    if (port_a < port_b)
+        return -1;
+    if (port_a > port_b)
+        return 1;
+    return 0;
+}
+
+void ft_packet_normalize(const ft_packet_t *packet, const ft_direction_config_t *directions, ft_normalized_flow_t *normalized) {
+    uint16_t tenant_id = 0;
+    ft_direction_t direction = FT_DIR_UNKNOWN;
+    bool mapped; // da duoc direction resolve chua
+
+    memset(normalized, 0, sizeof(*normalized));
+    mapped = ft_direction_resolve(directions,
+                                  packet->ingress_port,
+                                  packet->vlan_id,
+                                  packet->src_ip,
+                                  packet->dst_ip,
+                                  packet->tenant_hint,
+                                  packet->direction_hint,
+                                  &tenant_id,
+                                  &direction);
+    normalized->key.tenant_id = tenant_id;
+    normalized->key.protocol = packet->protocol;
+    normalized->direction = mapped ? direction : FT_DIR_UNKNOWN;
+
+    if (direction == FT_DIR_UPLINK) {
+        // uplink
+        normalized->key.client_ip = packet->src_ip;
+        normalized->key.server_ip = packet->dst_ip;
+        normalized->key.client_port = packet->src_port;
+        normalized->key.server_port = packet->dst_port;
+    } else if (direction == FT_DIR_DOWNLINK) {
+        // downlink
+        normalized->key.client_ip = packet->dst_ip;
+        normalized->key.server_ip = packet->src_ip;
+        normalized->key.client_port = packet->dst_port;
+        normalized->key.server_port = packet->src_port;
+    } else if (endpoint_compare(packet->src_ip,
+                                packet->src_port,
+                                packet->dst_ip,
+                                packet->dst_port) <= 0) {
+        /*
+            khong biet huong la uplink hay downlink thi sort endpoint
+            -> packet di/ve co cung key
+            nhung ko dam bao biet dau la client dau la server that
+        */
+        normalized->key.client_ip = packet->src_ip;
+        normalized->key.server_ip = packet->dst_ip;
+        normalized->key.client_port = packet->src_port;
+        normalized->key.server_port = packet->dst_port;
+    } else {
+        normalized->key.client_ip = packet->dst_ip;
+        normalized->key.server_ip = packet->src_ip;
+        normalized->key.client_port = packet->dst_port;
+        normalized->key.server_port = packet->src_port;
+    }
+}
