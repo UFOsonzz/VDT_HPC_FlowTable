@@ -1,5 +1,17 @@
+# Direction is transport metadata, not a mandatory property of Ethernet frames.
+# Priority: explicit packet hint -> ingress port -> VLAN -> IP prefix.
 match_type,value,tenant_id,direction
-SRC_PREFIX,192.168.2.227/32,1,UPLINK
-DST_PREFIX,192.168.2.227/32,1,DOWNLINK
+
+# Optional VLAN examples. VLAN is only one possible direction signal.
 VLAN,100,1,UPLINK
 VLAN,200,1,DOWNLINK
+VLAN,110,2,UPLINK
+VLAN,210,2,DOWNLINK
+
+# Untagged Ethernet example: subscriber/client subnet determines direction.
+SRC_PREFIX,10.0.0.0/8,1,UPLINK
+DST_PREFIX,10.0.0.0/8,1,DOWNLINK
+
+# Optional deployment examples for separate UL/DL ports:
+# INGRESS_PORT,0,1,UPLINK
+# INGRESS_PORT,1,1,DOWNLINK

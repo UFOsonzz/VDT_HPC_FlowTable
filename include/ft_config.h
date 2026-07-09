@@ -1,4 +1,3 @@
-// direction resolver
 #ifndef FT_CONFIG_H
 #define FT_CONFIG_H
 
@@ -9,35 +8,38 @@ typedef enum {
     FT_DIRECTION_MATCH_VLAN,
     FT_DIRECTION_MATCH_SRC_PREFIX,
     FT_DIRECTION_MATCH_DST_PREFIX
-} ft_direction_match_t; // cac tieu chi phan luong
+} ft_direction_match_t;
 
 typedef struct {
-    ft_direction_match_t match; // chon tieu chi nao
-    uint16_t value; // gia tri cua INGRESS_PORT hoac VLAN
-    uint32_t network; // luu ip neu tieu chi la IP
+    ft_direction_match_t match;
+    uint16_t value;
+    uint32_t network;
     uint32_t mask;
-    uint16_t tenant_id; // sau khi xu ly thi tenant_id la gi
-    ft_direction_t direction; // sau khi xu ly chon huong nao
-} ft_direction_rule_t; // luat cau hinh
-
-#define FT_MAX_DIRECTION_RULES 128
+    uint16_t tenant_id;
+    ft_direction_t direction;
+} ft_direction_rule_t;
 
 typedef struct {
     ft_direction_rule_t rules[FT_MAX_DIRECTION_RULES];
     uint16_t count;
-} ft_direction_config_t; // danh sach cac luat
+    uint16_t vlan_rule_index[4096];
+    uint16_t ingress_rule_indices[FT_MAX_DIRECTION_RULES];
+    uint16_t src_prefix_rule_indices[FT_MAX_DIRECTION_RULES];
+    uint16_t dst_prefix_rule_indices[FT_MAX_DIRECTION_RULES];
+    uint16_t ingress_rule_count;
+    uint16_t src_prefix_rule_count;
+    uint16_t dst_prefix_rule_count;
+} ft_direction_config_t;
 
-int ft_direction_config_load(ft_direction_config_t *config, const char *path); // doc file cau hinh tu path (con the la direction_rules.csv)
-
-// neu truyen thang packet -> phai #include <ft_packet.h> -> loi include thanh vong lap A-B-C-A
+int ft_direction_config_load(ft_direction_config_t *config, const char *path);
 bool ft_direction_resolve(const ft_direction_config_t *config,
-                                uint16_t ingress_port,
-                                uint16_t vlan_id,
-                                uint32_t src_ip,
-                                uint32_t dst_ip,
-                                uint16_t tenant_hint,
-                                ft_direction_t direction_hint,
-                                uint16_t *tenant_id,
-                                ft_direction_t *direction);
+                          uint16_t ingress_port,
+                          uint16_t vlan_id,
+                          uint32_t src_ip,
+                          uint32_t dst_ip,
+                          uint16_t tenant_hint,
+                          ft_direction_t direction_hint,
+                          uint16_t *tenant_id,
+                          ft_direction_t *direction);
 
 #endif

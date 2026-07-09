@@ -5,20 +5,16 @@ DPDK_CFLAGS := $(shell $(PKG_CONFIG) --cflags libdpdk)
 DPDK_LIBS := $(shell $(PKG_CONFIG) --libs libdpdk)
 
 CPPFLAGS += -Iinclude $(DPDK_CFLAGS)
-CFLAGS += -O2 -g -std=gnu11 -Wall -Wextra -Wpedantic
+CFLAGS ?= -O3 -g
+CFLAGS += -std=gnu11 -Wall -Wextra -Wpedantic -pthread
+LDFLAGS += -pthread
 LDLIBS += $(DPDK_LIBS)
 
 BUILD_DIR := build
-TARGET := $(BUILD_DIR)/rx_demo
+TARGET := $(BUILD_DIR)/flowtable
 
-SOURCES := \
-	src/main.c \
-	src/port.c \
-	src/rx_loop.c \
-	src/packet.c \
-	src/config.c \
-	src/flow.c \
-	src/rule.c
+CORE_SOURCES := src/config.c src/flow.c src/packet.c src/rule.c
+PIPELINE_SOURCES := src/pipeline.c
 
 .PHONY: all clean
 
@@ -27,8 +23,8 @@ all: $(TARGET)
 $(BUILD_DIR):
 	mkdir -p $(BUILD_DIR)
 
-$(TARGET): $(SOURCES) | $(BUILD_DIR)
-	$(CC) $(CPPFLAGS) $(CFLAGS) $^ $(LDLIBS) -o $@
+$(TARGET): $(CORE_SOURCES) $(PIPELINE_SOURCES) src/main.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS) -o $@
 
 clean:
 	rm -rf $(BUILD_DIR)
