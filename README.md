@@ -112,12 +112,8 @@ owner không bị đổi worker khi active worker count thay đổi.
   truyền `--stats-interval` thì interval mặc định là 1 giây. Dashboard có
   graph ASCII cho Active Flow, Throughput và Packet Drop.
 - `--cli`: bật CLI terminal trong ethdev mode với `show statistics`,
-  `show benchmark`, `show flow`, `show worker`, `show worker N`,
-  `show traffic`, `show dashboard`, `rules`, `reload`, `scale up`,
-  `scale down`, `quit`.
-  `show benchmark` hiển thị elapsed time, interval/average PPS,
-  flow-create-rate và packet drops theo thời gian thực. Khi PCAP PMD bật
-  `infinite_rx=1`, lệnh này dùng được như một màn hình benchmark live.
+  `show flow`, `show worker`, `show worker N`, `show traffic`,
+  `show dashboard`, `rules`, `reload`, `scale up`, `scale down`, `quit`.
   Khi bật `--cli`, pipeline không tự in `live ...` theo interval để terminal
   không bị spam và vẫn nhập lệnh bình thường.
   `show worker N` hiển thị riêng một worker core, gồm queue/lcore/socket,
@@ -129,7 +125,7 @@ Ví dụ bật CLI realtime với PCAP PMD:
 ```bash
 sudo ./build/flowtable \
   -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap,infinite_rx=1' -- \
-  --mode ethdev --port 0 --workers 4 --max-workers 4 --packets 0 --cli
+  --mode ethdev --port 0 --workers 2 --max-workers 4 --packets 0 --cli
 ```
 
 Lệnh ngắn hơn, tự kiểm tra hugepages và tự sinh PCAP nếu thiếu:
@@ -137,6 +133,13 @@ Lệnh ngắn hơn, tự kiểm tra hugepages và tự sinh PCAP nếu thiếu:
 ```bash
 scripts/run_cli_pcap.sh
 ```
+
+`scripts/run_cli_pcap.sh` mặc định chạy dynamic mode
+`--workers 2 --max-workers 4`, không truyền `--fixed-workers`. Vì vậy trong
+CLI, `scale up` tăng active worker count cho flow mới, `scale down` giảm lại.
+Flow đã có owner vẫn ở worker cũ để giữ flow affinity.
+Nếu muốn chạy fixed-worker giống benchmark E2E, dùng
+`FIXED_WORKERS=1 WORKERS=4 MAX_WORKERS=4 scripts/run_cli_pcap.sh`.
 
 Ví dụ bật dashboard realtime:
 

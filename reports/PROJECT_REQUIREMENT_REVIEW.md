@@ -15,7 +15,7 @@ tách pipeline thành các module rõ ràng và hoàn thiện CLI/dashboard real
 | Multi worker 4-8 core, flow affinity | Đạt | `src/dispatcher.c`; fixed-worker hash canonical key; dynamic owner-map khi scale runtime |
 | Dispatcher/RX/worker pipeline | Đạt | RX/dispatcher enqueue qua ring, worker xử lý run loop riêng |
 | SPI rule engine FORWARD/DROP/LOG/COUNT | Đạt | `src/rule.c`, `config/spi_rules.csv` |
-| Realtime CLI/dashboard | Đạt | `--cli`, `--dashboard`, `show benchmark`, `src/stats.c` |
+| Realtime CLI/dashboard | Đạt | `--cli`, `--dashboard`, `scale up/down`, `src/stats.c` |
 | Module tách tưởng minh | Đạt sau refactor | `config.c`, `packet.c`, `flow.c`, `rule.c`, `port.c`, `dispatcher.c`, `worker.c`, `control.c`, `pipeline.c`, `stats.c`, `main.c` |
 
 Phân tách module hiện tại:
@@ -32,7 +32,7 @@ Phân tách module hiện tại:
 | `src/worker.c` | Worker loop, flow lookup, SPI action cache, aging, counters |
 | `src/control.c` | Signals, runtime CLI, rule reload, show commands |
 | `src/pipeline.c` | Ethdev orchestration, lcore allocation, launch, stop, cleanup |
-| `src/stats.c` | CLI tables, dashboard graphs, live benchmark stats, summary output |
+| `src/stats.c` | CLI tables, dashboard graphs, runtime stats, summary output |
 
 ## 2. Thống kê lưu lượng và display
 
@@ -45,8 +45,8 @@ Docx yêu cầu thống kê theo flow table và theo worker core. Display hiện
 | `show worker` | per-worker state, lcore, socket, queue, packet, byte, dropped, active flow |
 | `show worker N` | chi tiết một worker core: queue/lcore/socket, packet/byte/forward/drop, flow lifecycle, `HTTP/HTTPS/DNS/TCP/UDP/OTHER`, direction counters |
 | `show traffic` | aggregate direction, aggregate traffic class, rule-hit table |
-| `show benchmark` | realtime elapsed time, interval/average PPS, Mbps, flow-create-rate, packet drops |
 | `show dashboard` / `--dashboard` | realtime dashboard ANSI, PPS/mbps interval, worker table, traffic class, top rule hits, Active Flow/Throughput/Packet Drop graphs |
+| `scale up/down` | tăng/giảm số active worker trong dynamic mode |
 
 `show worker N` là phần còn thiếu so với ví dụ `[Worker Core 0 Statistics]`
 trong docx và đã được bổ sung ở `src/stats.c`.

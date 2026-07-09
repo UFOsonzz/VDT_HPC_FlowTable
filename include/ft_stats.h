@@ -64,12 +64,6 @@ void ft_stats_print_dashboard(const ft_worker_t *workers,
                               const ft_rule_set_t *rules,
                               ft_dashboard_state_t *state,
                               bool clear_screen);
-void ft_stats_print_benchmark(const ft_worker_t *workers,
-                              uint16_t worker_count,
-                              uint16_t active_worker_count,
-                              uint64_t dispatched,
-                              const ft_rule_set_t *rules,
-                              ft_dashboard_state_t *state);
 void ft_stats_print_live(const ft_worker_t *workers,
                          uint16_t worker_count,
                          uint16_t active_worker_count,

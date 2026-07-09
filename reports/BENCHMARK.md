@@ -79,21 +79,20 @@ không có aging pressure test trong run hiện tại.
 queue, hai dispatcher và hai PCAP shard độc lập; mỗi dispatcher có SPSC ring
 riêng tới từng worker, worker round-robin drain các ring đó.
 
-## Realtime Benchmark CLI
+## Runtime CLI
 
-`scripts/run_cli_pcap.sh` bật PCAP PMD với `infinite_rx=1` mặc định, nên CLI
-có thể theo dõi benchmark live thay vì chỉ xem summary cuối run.
-CLI không tự in `live ...` theo interval; terminal chỉ cập nhật khi nhập lệnh
-để không che prompt.
+`scripts/run_cli_pcap.sh` bật PCAP PMD với `infinite_rx=1` mặc định để người
+dùng có thời gian thử runtime controls. Đây không phải benchmark chính thức;
+benchmark vẫn chạy riêng bằng `make benchmark-e2e`. CLI không tự in `live ...`
+theo interval; terminal chỉ cập nhật khi nhập lệnh để không che prompt.
 
 Các lệnh hữu ích:
 
-- `show benchmark`: elapsed time, interval/average PPS, Mbps, flow-create-rate,
-  interval drop và total drop.
 - `show dashboard`: dashboard ANSI có bảng realtime và graph Active Flow,
   Throughput, Packet Drop.
 - `show worker N`: thống kê riêng một worker core, gồm traffic classes
   `HTTP/HTTPS/DNS/TCP/UDP/OTHER`.
+- `scale up` / `scale down`: thay đổi số active worker trong dynamic mode.
 
 Chạy nhanh:
 

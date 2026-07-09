@@ -171,7 +171,6 @@ flowchart LR
     RH[Rule hit counters] --> COL
     COL --> LIVE[live stats line]
     COL --> DASH[ANSI dashboard]
-    COL --> BENCH[show benchmark]
     COL --> CLI1[show statistics]
     COL --> CLI2[show worker]
     COL --> CLI3[show worker N]

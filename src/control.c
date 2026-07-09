@@ -142,9 +142,9 @@ void *ft_cli_loop(void *argument) {
 
     printf(FT_ANSI_CLEAR);
     printf(FT_ANSI_BOLD FT_ANSI_CYAN "FlowTable CLI" FT_ANSI_RESET "\n");
-    printf("commands: help | show statistics | show benchmark | show flow |"
-           " show worker | show worker N | show traffic | show dashboard |"
-           " rules | reload | scale up | scale down | quit\n\n");
+    printf("commands: help | show statistics | show flow | show worker |"
+           " show worker N | show traffic | show dashboard | rules | reload |"
+           " scale up | scale down | quit\n\n");
     printf("flowtable> ");
     fflush(stdout);
     while (!atomic_load_explicit(context->stop, memory_order_acquire) &&
@@ -156,7 +156,6 @@ void *ft_cli_loop(void *argument) {
             printf("| command         | description                               |\n");
             printf("+-----------------+-------------------------------------------+\n");
             printf("| show statistics | total packet, byte, flow and rule stats    |\n");
-            printf("| show benchmark  | realtime PPS, flow rate and drop counters  |\n");
             printf("| show flow       | per-worker flow lifecycle counters         |\n");
             printf("| show worker     | per-worker queue and packet counters       |\n");
             printf("| show worker N   | one worker core traffic/class counters     |\n");
@@ -171,9 +170,6 @@ void *ft_cli_loop(void *argument) {
                    strcmp(line, "show statistics") == 0) {
             request_show(context->show_request, context->stop,
                          FT_SHOW_STATISTICS);
-        } else if (strcmp(line, "show benchmark") == 0) {
-            request_show(context->show_request, context->stop,
-                         FT_SHOW_BENCHMARK);
         } else if (strcmp(line, "show flow") == 0) {
             request_show(context->show_request, context->stop, FT_SHOW_FLOW);
         } else if (strcmp(line, "show worker") == 0) {
@@ -303,11 +299,6 @@ void ft_apply_control_events(const ft_app_config_t *config,
         ft_stats_print_dashboard(workers, worker_count, active, dispatched,
                                  ft_rule_store_current(rule_store),
                                  dashboard_state, false);
-        break;
-    case FT_SHOW_BENCHMARK:
-        ft_stats_print_benchmark(workers, worker_count, active, dispatched,
-                                 ft_rule_store_current(rule_store),
-                                 dashboard_state);
         break;
     case FT_SHOW_STATISTICS:
     default:

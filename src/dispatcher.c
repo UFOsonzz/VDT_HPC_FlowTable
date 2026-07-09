@@ -83,7 +83,7 @@ int ft_select_worker(ft_owner_table_t *table,
         return owner_table_get_or_create(table, key, active_worker_count,
                                          worker_id, NULL);
 
-    /* Fixed-worker benchmark mode avoids owner-map overhead on the hot path. */
+    /* Fixed-worker mode avoids owner-map overhead on the hot path. */
     *worker_id = (uint16_t)(ft_flow_hash(key) % active_worker_count);
     return 0;
 }

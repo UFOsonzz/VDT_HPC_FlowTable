@@ -36,7 +36,6 @@ typedef enum {
     FT_SHOW_WORKER,
     FT_SHOW_TRAFFIC,
     FT_SHOW_DASHBOARD,
-    FT_SHOW_BENCHMARK,
     FT_SHOW_WORKER_DETAIL_BASE = 1000
 } ft_show_request_t;
 
