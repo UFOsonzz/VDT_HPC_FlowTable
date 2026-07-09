@@ -1,7 +1,5 @@
 #include "ft_packet.h"
 
-#include <string.h>
-
 #include <rte_ether.h>
 #include <rte_hash_crc.h>
 #include <rte_ip.h>
@@ -32,8 +30,18 @@ int ft_packet_parse_mbuf(struct rte_mbuf *mbuf, ft_packet_t *packet) {
 
     if (mbuf == NULL || packet == NULL)
         return -1;
-    memset(packet, 0, sizeof(*packet));
+    packet->src_ip = 0;
+    packet->dst_ip = 0;
+    packet->src_port = 0;
+    packet->dst_port = 0;
+    packet->vlan_id = 0;
     packet->ingress_port = FT_INGRESS_PORT_UNKNOWN;
+    packet->tenant_hint = 0;
+    packet->protocol = 0;
+    packet->direction_hint = FT_DIR_UNKNOWN;
+    packet->packet_len = 0;
+    packet->timestamp = 0;
+    packet->mbuf = NULL;
     if (rte_pktmbuf_pkt_len(mbuf) < sizeof(*ether))
         return -1;
 
@@ -89,7 +97,6 @@ void ft_packet_normalize(const ft_packet_t *packet,
     ft_direction_t direction = FT_DIR_UNKNOWN;
     bool mapped;
 
-    memset(normalized, 0, sizeof(*normalized));
     mapped = ft_direction_resolve(directions,
                                   packet->ingress_port,
                                   packet->vlan_id,
@@ -101,6 +108,7 @@ void ft_packet_normalize(const ft_packet_t *packet,
                                   &direction);
     normalized->key.tenant_id = tenant_id;
     normalized->key.protocol = packet->protocol;
+    normalized->key.reserved = 0;
     normalized->direction = mapped ? direction : FT_DIR_UNKNOWN;
 
     if (direction == FT_DIR_UPLINK) {

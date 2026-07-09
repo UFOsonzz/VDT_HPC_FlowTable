@@ -85,15 +85,20 @@ normalize, owner-map, ring, worker flow table, SPI/action cache và drain worker
 
 | Profile | Mode | Workers | Packets | Processed | Dropped | Active flow | PPS |
 |---|---|---:|---:|---:|---:|---:|---:|
-| synthetic-fixed-huge | synthetic | 1/1 | 200,000 | 200,000 | 0 | 20,000 | 4.45 Mpps |
-| synthetic-scale-huge | synthetic | 1 -> 4 | 400,000 | 400,000 | 0 | 100,000 | 2.95 Mpps |
-| pcap-spi-huge | ethdev/PCAP PMD | 1 -> 4 | 200,000 | 200,000 | 0 | 100,000 | 1.57 Mpps |
+| synthetic-fixed-huge | synthetic | 1/1 | 200,000 | 200,000 | 0 | 20,000 | 10.11 Mpps |
+| synthetic-scale-huge | synthetic | 1 -> 4 | 400,000 | 400,000 | 0 | 100,000 | 6.34 Mpps |
+| pcap-spi-huge | ethdev/PCAP PMD | 1/4 launched | 200,000 | 200,000 | 0 | 100,000 | 2.62 Mpps |
 
 `synthetic-scale-huge` bật logical dynamic scaling. Dispatcher dùng owner-map
 nên flow đã có owner vẫn đi về worker cũ; worker mới chỉ nhận flow mới sau thời
 điểm scale. PPS profile này không so trực tiếp với fixed profile vì số flow lớn
 hơn và có thêm owner-map/control overhead. `pcap-spi-huge` dùng PCAP Ethernet
-được sinh từ `SPI_DPI_rule.xlsx` qua `scripts/generate_spi_pcap.py`.
+được sinh từ `SPI_DPI_rule.xlsx` qua `scripts/generate_spi_pcap.py`; profile
+này giữ một active worker để đo riêng chi phí PCAP PMD, parser, dispatcher,
+owner-map và một worker xử lý flow.
+Fast path hiện gom work-item allocation/enqueue theo burst và worker trả
+work-item về mempool theo bulk, đồng thời timestamp RX được lấy theo burst thay
+vì từng packet.
 
 ## Worker scale benchmark
 

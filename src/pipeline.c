@@ -21,6 +21,7 @@
 #define FT_PUBLISH_INTERVAL 4096U
 #define FT_RULE_RETIRED_MAX 64U
 #define FT_CONTROL_INTERVAL 4096U
+#define FT_DISPATCH_BURST 64U
 
 static volatile sig_atomic_t force_quit;
 static volatile sig_atomic_t reload_signal;
@@ -82,6 +83,13 @@ typedef struct {
     _Atomic int *show_request;
     _Atomic bool *stop;
 } ft_cli_context_t;
+
+typedef struct {
+    void *pending[FT_DISPATCH_BURST];
+    void *free_items[FT_DISPATCH_BURST];
+    uint16_t pending_count;
+    uint16_t free_count;
+} ft_dispatch_queue_t;
 
 static void handle_signal(int signal_number) {
     (void)signal_number;
@@ -656,6 +664,81 @@ static void apply_control_events(const ft_app_config_t *config,
     }
 }
 
+static uint16_t dispatch_burst_size(const ft_app_config_t *config) {
+    uint32_t burst_size = config->burst_size;
+
+    if (burst_size == 0 || burst_size > FT_DISPATCH_BURST)
+        burst_size = FT_DISPATCH_BURST;
+    if (config->ring_size != 0 && burst_size > config->ring_size)
+        burst_size = config->ring_size;
+    return (uint16_t)(burst_size == 0 ? 1U : burst_size);
+}
+
+static ft_work_item_t *dispatch_get_item(ft_worker_t *worker,
+                                         ft_dispatch_queue_t *queue,
+                                         uint16_t burst_size) {
+    void *object;
+
+    if (queue->free_count != 0)
+        return queue->free_items[--queue->free_count];
+    if (burst_size > 1 &&
+        rte_mempool_get_bulk(worker->work_pool, queue->free_items,
+                             burst_size) == 0) {
+        queue->free_count = burst_size;
+        return queue->free_items[--queue->free_count];
+    }
+    while (rte_mempool_get(worker->work_pool, &object) != 0)
+        rte_pause();
+    return object;
+}
+
+static void flush_dispatch_queue(ft_worker_t *worker,
+                                 ft_dispatch_queue_t *queue) {
+    uint16_t offset = 0;
+
+    while (offset < queue->pending_count) {
+        unsigned int enqueued =
+            rte_ring_sp_enqueue_burst(worker->input, &queue->pending[offset],
+                                      queue->pending_count - offset, NULL);
+
+        if (enqueued == 0)
+            rte_pause();
+        else
+            offset = (uint16_t)(offset + enqueued);
+    }
+    queue->pending_count = 0;
+}
+
+static void dispatch_enqueue_item(ft_worker_t *worker,
+                                  ft_dispatch_queue_t *queue,
+                                  ft_work_item_t *item,
+                                  uint16_t burst_size) {
+    queue->pending[queue->pending_count++] = item;
+    if (queue->pending_count == burst_size)
+        flush_dispatch_queue(worker, queue);
+}
+
+static void flush_dispatch_queues(ft_worker_t *workers,
+                                  ft_dispatch_queue_t *queues,
+                                  uint16_t worker_count) {
+    for (uint16_t i = 0; i < worker_count; i++) {
+        if (queues[i].pending_count != 0)
+            flush_dispatch_queue(&workers[i], &queues[i]);
+    }
+}
+
+static void return_dispatch_cached_items(ft_worker_t *workers,
+                                         ft_dispatch_queue_t *queues,
+                                         uint16_t worker_count) {
+    for (uint16_t i = 0; i < worker_count; i++) {
+        if (queues[i].free_count == 0)
+            continue;
+        rte_mempool_put_bulk(workers[i].work_pool, queues[i].free_items,
+                             queues[i].free_count);
+        queues[i].free_count = 0;
+    }
+}
+
 static void finish_packet(ft_worker_t *worker, ft_work_item_t *item, ft_action_t action) {
     struct rte_mbuf *mbuf = item->packet.mbuf;
 
@@ -673,7 +756,6 @@ static void finish_packet(ft_worker_t *worker, ft_work_item_t *item, ft_action_t
             rte_pktmbuf_free(mbuf);
         }
     }
-    rte_mempool_put(worker->work_pool, item);
 }
 
 static void process_item(ft_worker_t *worker, ft_work_item_t *item) {
@@ -692,7 +774,6 @@ static void process_item(ft_worker_t *worker, ft_work_item_t *item) {
         worker->local.dropped++;
         if (item->packet.mbuf != NULL)
             rte_pktmbuf_free(item->packet.mbuf);
-        rte_mempool_put(worker->work_pool, item);
         return;
     }
     if (created) {
@@ -735,14 +816,16 @@ static int worker_loop(void *argument) {
         } else {
             for (unsigned int i = 0; i < count; i++)
                 process_item(worker, objects[i]);
+            rte_mempool_put_bulk(worker->work_pool, objects, count);
             if ((worker->local.packets & (FT_PUBLISH_INTERVAL - 1)) == 0)
                 publish_stats(worker);
         }
-        if (rte_get_tsc_cycles() >= next_age) {
-            ft_flow_table_age(&worker->flow_table, rte_get_tsc_cycles(),
-                              worker->timeout_cycles, worker->aging_budget);
+        uint64_t now = rte_get_tsc_cycles();
+        if (now >= next_age) {
+            ft_flow_table_age(&worker->flow_table, now, worker->timeout_cycles,
+                              worker->aging_budget);
             publish_stats(worker);
-            next_age = rte_get_tsc_cycles() + rte_get_tsc_hz();
+            next_age = now + rte_get_tsc_hz();
         }
     }
     publish_stats(worker);
@@ -751,6 +834,7 @@ static int worker_loop(void *argument) {
 
 static void generate_synthetic_packet(uint64_t packet_index,
                           uint32_t flow_count,
+                          uint64_t timestamp,
                           ft_packet_t *packet) {
     uint32_t flow_id = (uint32_t)((packet_index / 2) % flow_count);
     uint32_t client_ip = 0x0a000001U + flow_id;
@@ -791,8 +875,9 @@ static void generate_synthetic_packet(uint64_t packet_index,
         protocol = IPPROTO_UDP;
         break;
     }
-    memset(packet, 0, sizeof(*packet));
     packet->ingress_port = FT_INGRESS_PORT_UNKNOWN;
+    packet->tenant_hint = 0;
+    packet->direction_hint = FT_DIR_UNKNOWN;
     packet->src_ip = downlink ? server_ip : client_ip;
     packet->dst_ip = downlink ? client_ip : server_ip;
     packet->src_port = downlink ? server_port : (uint16_t)(1024 + flow_id % 50000);
@@ -800,7 +885,8 @@ static void generate_synthetic_packet(uint64_t packet_index,
     packet->vlan_id = 0;
     packet->protocol = protocol;
     packet->packet_len = (uint16_t)(64 + (flow_id % 1400));
-    packet->timestamp = rte_get_tsc_cycles();
+    packet->timestamp = timestamp;
+    packet->mbuf = NULL;
 }
 
 static int create_worker(ft_worker_t *worker,
@@ -911,6 +997,7 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
     ft_rule_store_t rule_store;
     ft_owner_table_t owners;
     ft_worker_t workers[FT_MAX_WORKERS];
+    ft_dispatch_queue_t dispatch_queues[FT_MAX_WORKERS];
     unsigned int lcore_ids[FT_MAX_WORKERS];
     unsigned int lcore_id;
     _Atomic bool stop = false;
@@ -921,16 +1008,20 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
     ft_dashboard_state_t dashboard_state = {0};
     uint16_t available = 0;
     uint16_t launched_workers = config->max_worker_count;
+    uint16_t dispatch_burst;
     uint32_t owner_capacity;
     uint64_t start = rte_get_tsc_cycles();
     uint64_t end = start;
     uint64_t next_stats = 0;
+    uint64_t packet_timestamp;
     uint64_t dispatched = 0;
     bool launch_ok = true;
     int result = -1;
 
     memset(&owners, 0, sizeof(owners));
+    memset(dispatch_queues, 0, sizeof(dispatch_queues));
     atomic_init(&active_worker_count, config->worker_count);
+    dispatch_burst = dispatch_burst_size(config);
     if (ft_direction_config_load(&directions, config->direction_path) != 0 ||
         rule_store_init(&rule_store, config->rule_path) != 0) {
         fprintf(stderr, "Cannot load direction or SPI rule configuration\n");
@@ -975,6 +1066,7 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
 
     start = rte_get_tsc_cycles();
     dashboard_state.last_cycles = start;
+    packet_timestamp = start;
     if (config->stats_interval_seconds != 0)
         next_stats = start + config->stats_interval_seconds * rte_get_tsc_hz();
     for (uint64_t i = 0; i < config->packet_count; i++) {
@@ -983,7 +1075,10 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
         ft_work_item_t *item;
         uint16_t worker_id;
 
-        generate_synthetic_packet(i, config->synthetic_flow_count, &packet);
+        if ((i & (FT_CONTROL_INTERVAL - 1U)) == 0)
+            packet_timestamp = rte_get_tsc_cycles();
+        generate_synthetic_packet(i, config->synthetic_flow_count,
+                                  packet_timestamp, &packet);
         ft_packet_normalize(&packet, &directions, &normalized);
         if (owner_table_get_or_create(&owners, &normalized.key,
                                       atomic_load_explicit(
@@ -991,13 +1086,14 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
                                           memory_order_acquire),
                                       &worker_id, NULL) != 0)
             continue;
-        while (rte_mempool_get(workers[worker_id].work_pool,
-                               (void **)&item) != 0)
-            rte_pause();
+        item = dispatch_get_item(&workers[worker_id],
+                                 &dispatch_queues[worker_id],
+                                 dispatch_burst);
         item->packet = packet;
         item->normalized = normalized;
-        while (rte_ring_sp_enqueue(workers[worker_id].input, item) != 0)
-            rte_pause();
+        dispatch_enqueue_item(&workers[worker_id],
+                              &dispatch_queues[worker_id], item,
+                              dispatch_burst);
         dispatched++;
         if (config->scale_interval_packets != 0 &&
             dispatched % config->scale_interval_packets == 0)
@@ -1023,6 +1119,8 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
                          config->stats_interval_seconds * rte_get_tsc_hz();
         }
     }
+    flush_dispatch_queues(workers, dispatch_queues, launched_workers);
+    return_dispatch_cached_items(workers, dispatch_queues, launched_workers);
     apply_control_events(config, workers, launched_workers,
                          &active_worker_count, &rule_store,
                          &reload_requested, &scale_delta,
@@ -1122,6 +1220,7 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
     pthread_t cli_thread;
     ft_cli_context_t cli_context;
     ft_worker_t workers[FT_MAX_WORKERS];
+    ft_dispatch_queue_t dispatch_queues[FT_MAX_WORKERS];
     unsigned int lcore_ids[FT_MAX_WORKERS];
     unsigned int lcore_id;
     struct rte_mempool *mbuf_pool = NULL;
@@ -1134,6 +1233,7 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
     ft_dashboard_state_t dashboard_state = {0};
     uint16_t available = 0;
     uint16_t launched_workers = config->max_worker_count;
+    uint16_t dispatch_burst;
     uint32_t owner_capacity;
     uint64_t start = rte_get_tsc_cycles();
     uint64_t end = start;
@@ -1144,7 +1244,9 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
 
     memset(&owners, 0, sizeof(owners));
     memset(&cli_context, 0, sizeof(cli_context));
+    memset(dispatch_queues, 0, sizeof(dispatch_queues));
     atomic_init(&active_worker_count, config->worker_count);
+    dispatch_burst = dispatch_burst_size(config);
     if (ft_direction_config_load(&directions, config->direction_path) != 0 ||
         rule_store_init(&rule_store, config->rule_path) != 0)
         return -1;
@@ -1213,7 +1315,10 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
            (config->packet_count == 0 || dispatched < config->packet_count)) {
         uint16_t count = rte_eth_rx_burst(config->port_id, 0, mbufs,
                                           RTE_DIM(mbufs));
+        uint64_t rx_timestamp;
+
         if (count == 0) {
+            flush_dispatch_queues(workers, dispatch_queues, launched_workers);
             apply_control_events(config, workers, launched_workers,
                                  &active_worker_count, &rule_store,
                                  &reload_requested, &scale_delta,
@@ -1221,6 +1326,7 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
             rte_pause();
             continue;
         }
+        rx_timestamp = rte_get_tsc_cycles();
         for (uint16_t i = 0; i < count; i++) {
             ft_packet_t packet;
             ft_normalized_flow_t normalized;
@@ -1237,7 +1343,7 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
                 continue;
             }
             packet.ingress_port = config->port_id;
-            packet.timestamp = rte_get_tsc_cycles();
+            packet.timestamp = rx_timestamp;
             ft_packet_normalize(&packet, &directions, &normalized);
             if (owner_table_get_or_create(&owners, &normalized.key,
                                           atomic_load_explicit(
@@ -1247,13 +1353,14 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
                 rte_pktmbuf_free(mbufs[i]);
                 continue;
             }
-            while (rte_mempool_get(workers[worker_id].work_pool,
-                                   (void **)&item) != 0)
-                rte_pause();
+            item = dispatch_get_item(&workers[worker_id],
+                                     &dispatch_queues[worker_id],
+                                     dispatch_burst);
             item->packet = packet;
             item->normalized = normalized;
-            while (rte_ring_sp_enqueue(workers[worker_id].input, item) != 0)
-                rte_pause();
+            dispatch_enqueue_item(&workers[worker_id],
+                                  &dispatch_queues[worker_id], item,
+                                  dispatch_burst);
             dispatched++;
             if ((dispatched & (FT_CONTROL_INTERVAL - 1U)) == 0)
                 apply_control_events(config, workers, launched_workers,
@@ -1279,6 +1386,8 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
             }
         }
     }
+    flush_dispatch_queues(workers, dispatch_queues, launched_workers);
+    return_dispatch_cached_items(workers, dispatch_queues, launched_workers);
 
 stop_workers:
     atomic_store_explicit(&stop, true, memory_order_release);

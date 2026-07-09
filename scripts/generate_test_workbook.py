@@ -90,7 +90,7 @@ PERFORMANCE = [
      "22.51 / 45.62 / 66.66 Mpps", "PASS", ""],
     ["PT-005", "End-to-end pipeline", "200k packets, 100k generated SPI flows",
      "PPS and loss", "processed=dispatched; no unexpected drop",
-     "make benchmark-e2e", "1.57 Mpps PCAP PMD; zero loss", "PASS",
+     "make benchmark-e2e", "2.62 Mpps PCAP PMD; zero loss", "PASS",
      "Generated Ethernet PCAP from SPI_DPI_rule.xlsx"],
     ["PT-006", "Flow creation rate", "All packets create new flows",
      "Flows/s", "Establish server-specific baseline", "Benchmark variant",
