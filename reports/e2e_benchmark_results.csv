@@ -1,3 +1,3 @@
 profile,mode,workers,max_workers,rx_queues,dispatchers,warmup_runs,measure_runs,median_run,total_packets,flows,processed,dropped,active_flows,seconds,pps
-pcap-spi-4w-huge,ethdev,4,4,1,1,2,5,2,200000,100000,200000,0,100000,0.061625,3245431
-pcap-spi-mq-2d4w-huge,ethdev,4,4,2,2,2,5,1,200000,100000,200000,0,100000,0.043586,4588603
+pcap-spi-4w-huge,ethdev,4,4,1,1,2,5,2,200000,100000,200000,0,100000,0.036621,5461349
+pcap-spi-mq-2d4w-huge,ethdev,4,4,2,2,2,5,3,200000,100000,200000,0,100000,0.027624,7240005
