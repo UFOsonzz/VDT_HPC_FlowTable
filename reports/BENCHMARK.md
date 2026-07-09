@@ -1,6 +1,6 @@
 # Test and Benchmark Report
 
-Ngày đo gần nhất: 2026-07-09.
+Ngày đo gần nhất: 2026-07-10.
 
 ## Môi trường
 
@@ -57,15 +57,15 @@ resolver, SPI rule/cache, dispatcher, ring và worker flow table.
 
 | Profile | Mode | Workers | RXQ/Dispatchers | Warmup/Measured | Packets | Processed | Dropped | Active flow | PPS |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 5.46 Mpps |
-| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 7.24 Mpps |
+| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 6.43 Mpps |
+| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 9.57 Mpps |
 
 Các trường bắt buộc theo mục "3. Bài test & kết quả" trong docx:
 
 | Profile | Throughput | Max active flows | Flow create rate | Flow delete/timeout rate | CPU core usage |
 |---|---:|---:|---:|---:|---|
-| pcap-spi-4w-huge | 5.46 Mpps | 100,000 | 2.73 Mflows/s | 0/s | 5 lcores allocated, 62.50% of 8 logical CPUs |
-| pcap-spi-mq-2d4w-huge | 7.24 Mpps | 100,000 | 3.62 Mflows/s | 0/s | 7 lcores allocated, 87.50% of 8 logical CPUs |
+| pcap-spi-4w-huge | 6.43 Mpps | 100,000 | 3.22 Mflows/s | 0/s | 5 lcores allocated, 62.50% of 8 logical CPUs |
+| pcap-spi-mq-2d4w-huge | 9.57 Mpps | 100,000 | 4.79 Mflows/s | 0/s | 7 lcores allocated, 87.50% of 8 logical CPUs |
 
 CPU ở bảng trên là mức core/lcore được cấp phát cho EAL command, không phải
 OS-sampled utilization từ `pidstat`/`perf`. DPDK poll-mode thường giữ lcore
