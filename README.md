@@ -52,16 +52,18 @@ dùng `--in-memory` để tránh DPDK multiprocess socket trên laptop/sandbox; 
 này không bật chế độ no-huge. Có thể đổi bằng `HUGEPAGE_MB` và
 `HUGEPAGE_MOUNT`.
 
-E2E benchmark tự tạo `generated/spi_benchmark.pcap` nếu file chưa tồn tại.
-PCAP này được sinh từ `SPI_DPI_rule.xlsx` bằng
-`scripts/generate_spi_pcap.py`, mặc định `PCAP_FLOWS=100000` và
-`PCAP_PACKETS=200000`. Các profile fixed-worker dùng `--fixed-workers` để tắt
-runtime scaling và dispatch flow trực tiếp bằng hash canonical key; profile
-dynamic-scale vẫn dùng owner-map để giữ flow ownership khi active worker count
-thay đổi.
+E2E benchmark mặc định chạy 2 warmup runs, 5 measured runs và ghi median run
+vào `reports/e2e_benchmark_results.csv`. PCAP benchmark mặc định được sinh lại
+từ `SPI_DPI_rule.xlsx` bằng `scripts/generate_spi_pcap.py`, với
+`PCAP_FLOWS=100000` và `PCAP_PACKETS=1000000`. Có thể chạy nhanh hơn khi dev
+bằng `E2E_WARMUP_RUNS=0 E2E_RUNS=1 PCAP_PACKETS=200000 make benchmark-e2e`.
+Các profile fixed-worker dùng `--fixed-workers` để tắt runtime scaling và
+dispatch flow trực tiếp bằng hash canonical key; profile dynamic-scale vẫn dùng
+owner-map để giữ flow ownership khi active worker count thay đổi.
 Profile multi-RX mặc định dùng `MQ_DISPATCHERS=2`, sinh các PCAP shard riêng
-và truyền nhiều `rx_pcap` vào PCAP PMD. Nếu đổi số shard hoặc kích thước, đặt
-`MQ_REGENERATE=1` để sinh lại.
+và truyền nhiều `rx_pcap` vào PCAP PMD. Với dataset mặc định, script tự sinh
+lại shard để tránh dùng nhầm PCAP cũ không đủ packet; nếu tự truyền
+`MQ_PCAP_PREFIX`, đặt `MQ_REGENERATE=1` khi đổi số shard hoặc kích thước.
 
 ## Chạy synthetic pipeline
 

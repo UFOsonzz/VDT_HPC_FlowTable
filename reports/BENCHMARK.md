@@ -10,6 +10,8 @@ Ngày đo gần nhất: 2026-07-09.
 - Compiler: GCC 16.1.1, `-O3`
 - Chế độ benchmark hiện tại: hugepages 2MB, 512 pages, `--huge-dir /mnt/huge`,
   `--in-memory`, `--no-pci`
+- E2E benchmark: 2 warmup runs bị bỏ qua, 5 measured runs, lấy median PPS;
+  workload PCAP mặc định 1.000.000 packet
 - Dataset rule: `config/spi_rules.csv`
 
 Đây là môi trường laptop, không phải server data-plane chuyên dụng. Turbo,
@@ -77,19 +79,31 @@ không mất gói. Worker-engine benchmark bên dưới tách khỏi dispatcher/
 
 ## End-to-end benchmark hiện tại
 
-Nguồn chính xác: `reports/e2e_benchmark_results.csv`.
+Nguồn chính xác: `reports/e2e_benchmark_results.csv`. CSV lưu cả
+`warmup_runs`, `measure_runs` và `median_run`. PPS trong bảng là tổng thông
+lượng packet đã xử lý của toàn pipeline ở median run, không phải trung bình
+mỗi worker.
+
+Benchmark cũ chạy một lần với 200.000 packet nên nhiều profile kết thúc trong
+vài chục ms; số đo dễ bị ảnh hưởng bởi CPU frequency, page cache, branch/cache
+cold start và nhiễu nền của laptop. Quy trình hiện tại chạy warmup process
+trước, tăng workload đo lên 1.000.000 packet và lấy median của 5 lần đo để
+giữ đủ pipeline thật: packet generation/PCAP PMD, parser, direction resolver,
+SPI rule/cache, dispatcher, ring và worker flow table. Không dùng app-level
+"warm flow" reset vì cách đó sẽ bỏ bớt chi phí tạo flow/rule match ban đầu và
+làm benchmark lạc quan hơn workload end-to-end thật.
 
 Các profile này chạy binary `build/flowtable`, vì vậy đo cả dispatcher,
 normalize, flow-affinity dispatch, ring, worker flow table, SPI/action cache và
 drain worker. PCAP profile đi qua DPDK PCAP PMD, `rte_eth_rx_burst()` và parser
 mbuf thật.
 
-| Profile | Mode | Workers | RXQ/Dispatchers | Packets | Processed | Dropped | Active flow | PPS |
-|---|---|---:|---:|---:|---:|---:|---:|---:|
-| synthetic-fixed-huge | synthetic | 1/1 | 0/0 | 200,000 | 200,000 | 0 | 20,000 | 11.38 Mpps |
-| synthetic-scale-huge | synthetic | 1 -> 4 | 0/0 | 400,000 | 400,000 | 0 | 100,000 | 5.61 Mpps |
-| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 200,000 | 200,000 | 0 | 100,000 | 3.02 Mpps |
-| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 200,000 | 200,000 | 0 | 100,000 | 4.60 Mpps |
+| Profile | Mode | Workers | RXQ/Dispatchers | Warmup/Measured | Packets | Processed | Dropped | Active flow | PPS |
+|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| synthetic-fixed-huge | synthetic | 1/1 | 0/0 | 2/5 | 1,000,000 | 1,000,000 | 0 | 20,000 | 6.16 Mpps |
+| synthetic-scale-huge | synthetic | 1 -> 4 | 0/0 | 2/5 | 1,000,000 | 1,000,000 | 0 | 100,000 | 2.36 Mpps |
+| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 1,000,000 | 1,000,000 | 0 | 100,000 | 1.95 Mpps |
+| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 1,000,000 | 1,000,000 | 0 | 100,000 | 2.63 Mpps |
 
 `synthetic-scale-huge` bật logical dynamic scaling. Dispatcher dùng owner-map
 nên flow đã có owner vẫn đi về worker cũ; worker mới chỉ nhận flow mới sau thời
@@ -102,8 +116,9 @@ hash canonical key trực tiếp; profile scale động vẫn dùng owner-map đ
 không bị đổi worker khi active worker count thay đổi. Profile
 `pcap-spi-mq-2d4w-huge` dùng hai RX queue, hai dispatcher và hai PCAP shard
 độc lập; mỗi dispatcher có SPSC ring riêng tới từng worker, worker round-robin
-drain các ring đó. Trên laptop này profile multi-RX đạt 1.52x so với single
-dispatcher PCAP PMD, tốt cho môi trường laptop/PCAP nhưng vẫn chưa thay thế
+drain các ring đó. Trên laptop này profile multi-RX đạt 1.35x so với single
+dispatcher PCAP PMD, khá hơn single-dispatcher trong môi trường laptop/PCAP
+nhưng vẫn chưa thay thế
 benchmark NIC RSS vật lý vì PCAP PMD không advertise RSS offloads.
 Fast path hiện gom work-item allocation/enqueue theo burst và worker trả
 work-item về mempool theo bulk, đồng thời timestamp RX được lấy theo burst thay

@@ -1,5 +1,5 @@
-profile,mode,workers,max_workers,rx_queues,dispatchers,total_packets,flows,processed,dropped,active_flows,seconds,pps
-synthetic-fixed-huge,synthetic,1,1,0,0,200000,20000,200000,0,20000,0.049926,4005893
-synthetic-scale-huge,synthetic,1,4,0,0,400000,100000,400000,0,100000,0.220985,1810074
-pcap-spi-4w-huge,ethdev,4,4,1,1,200000,100000,200000,0,100000,0.201971,990241
-pcap-spi-mq-2d4w-huge,ethdev,4,4,2,2,200000,100000,200000,0,100000,0.122671,1630381
+profile,mode,workers,max_workers,rx_queues,dispatchers,warmup_runs,measure_runs,median_run,total_packets,flows,processed,dropped,active_flows,seconds,pps
+synthetic-fixed-huge,synthetic,1,1,0,0,2,5,3,1000000,20000,1000000,0,20000,0.162392,6157931
+synthetic-scale-huge,synthetic,1,4,0,0,2,5,3,1000000,100000,1000000,0,100000,0.423651,2360434
+pcap-spi-4w-huge,ethdev,4,4,1,1,2,5,1,1000000,100000,1000000,0,100000,0.511805,1953870
+pcap-spi-mq-2d4w-huge,ethdev,4,4,2,2,2,5,4,1000000,100000,1000000,0,100000,0.379653,2633981
