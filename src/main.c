@@ -22,6 +22,8 @@ static void usage(const char *program) {
            "  --rules PATH       SPI CSV converted from workbook\n"
            "  --directions PATH  Direction strategy CSV\n"
            "  --port N           Ethdev/PCAP PMD port (default: 0)\n"
+           "  --rx-queues N      Ethdev RX queues to poll (default: 1)\n"
+           "  --dispatchers N    RX dispatcher lcores for ethdev (default: 1)\n"
            "  --tx               Transmit FORWARD packets on per-worker TX queues\n"
            "  --cli              Enable terminal CLI for ethdev mode\n"
            "  --dashboard        Print ANSI realtime dashboard; default interval 1s\n"
@@ -44,6 +46,8 @@ int main(int argc, char **argv) {
         .synthetic_flow_count = 100000,
         .rule_path = "config/spi_rules.csv",
         .direction_path = "config/direction_rules.csv",
+        .rx_queue_count = 1,
+        .dispatcher_count = 1,
     };
     const char *mode = "synthetic";
     static const struct option options[] = {
@@ -60,6 +64,8 @@ int main(int argc, char **argv) {
         {"rules", required_argument, NULL, 'R'},
         {"directions", required_argument, NULL, 'D'},
         {"port", required_argument, NULL, 'P'},
+        {"rx-queues", required_argument, NULL, 'q'},
+        {"dispatchers", required_argument, NULL, 'd'},
         {"tx", no_argument, NULL, 'T'},
         {"cli", no_argument, NULL, 'C'},
         {"dashboard", no_argument, NULL, 'B'},
@@ -77,7 +83,7 @@ int main(int argc, char **argv) {
     argc -= consumed;
     argv += consumed;
     optind = 1;
-    while ((option = getopt_long(argc, argv, "m:w:W:p:f:c:r:t:s:S:R:D:P:TCBFh",
+    while ((option = getopt_long(argc, argv, "m:w:W:p:f:c:r:t:s:S:R:D:P:q:d:TCBFh",
                                  options, NULL)) != -1) {
         switch (option) {
         case 'm':
@@ -120,6 +126,12 @@ int main(int argc, char **argv) {
         case 'P':
             config.port_id = (uint16_t)strtoul(optarg, NULL, 10);
             break;
+        case 'q':
+            config.rx_queue_count = (uint16_t)strtoul(optarg, NULL, 10);
+            break;
+        case 'd':
+            config.dispatcher_count = (uint16_t)strtoul(optarg, NULL, 10);
+            break;
         case 'T':
             config.tx_enabled = true;
             break;
@@ -148,15 +160,30 @@ int main(int argc, char **argv) {
     if (config.synthetic_flow_count == 0 ||
         config.worker_count == 0 ||
         config.max_worker_count == 0 ||
+        config.rx_queue_count == 0 ||
+        config.dispatcher_count == 0 ||
         config.worker_count > config.max_worker_count ||
-        config.max_worker_count > FT_MAX_WORKERS) {
+        config.max_worker_count > FT_MAX_WORKERS ||
+        config.dispatcher_count > FT_MAX_DISPATCHERS) {
         usage(argv[0]);
         rte_eal_cleanup();
         return EXIT_FAILURE;
     }
-    if (strcmp(mode, "ethdev") == 0)
+    if (strcmp(mode, "ethdev") == 0) {
+        if (config.rx_queue_count != config.dispatcher_count) {
+            fprintf(stderr, "--rx-queues must equal --dispatchers\n");
+            usage(argv[0]);
+            rte_eal_cleanup();
+            return EXIT_FAILURE;
+        }
+        if (config.dispatcher_count > 1 && !config.fixed_workers) {
+            fprintf(stderr, "--dispatchers > 1 requires --fixed-workers\n");
+            usage(argv[0]);
+            rte_eal_cleanup();
+            return EXIT_FAILURE;
+        }
         result = ft_pipeline_run_ethdev(&config);
-    else if (strcmp(mode, "synthetic") == 0)
+    } else if (strcmp(mode, "synthetic") == 0)
         result = ft_pipeline_run_synthetic(&config);
     else {
         usage(argv[0]);

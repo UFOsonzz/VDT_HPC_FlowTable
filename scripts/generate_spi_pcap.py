@@ -226,13 +226,13 @@ def write_pcap(path, packets):
             output.write(packet)
 
 
-def generate_packets(rules, flow_count, packet_count, use_vlan, seed):
+def generate_packets(rules, flow_count, packet_count, use_vlan, seed, flow_offset):
     rng = random.Random(seed)
     active_rules = [rule for rule in rules if rule["name"].upper() != "DEFAULT"]
     if not active_rules:
         raise RuntimeError("no SPI rules found")
     for packet_id in range(packet_count):
-        flow_id = (packet_id // 2) % flow_count
+        flow_id = flow_offset + ((packet_id // 2) % flow_count)
         rule = active_rules[flow_id % len(active_rules)]
         client_ip, server_ip, client_port, server_port, protocol = flow_tuple(rule, flow_id, rng)
         downlink = packet_id & 1
@@ -244,7 +244,7 @@ def generate_packets(rules, flow_count, packet_count, use_vlan, seed):
             src_ip, dst_ip = client_ip, server_ip
             src_port, dst_port = client_port, server_port
             vlan_id = 100 if use_vlan else None
-        yield build_ethernet(vlan_id, src_ip, dst_ip, protocol, src_port, dst_port, packet_id)
+        yield build_ethernet(vlan_id, src_ip, dst_ip, protocol, src_port, dst_port, flow_offset + packet_id)
 
 
 def main():
@@ -254,13 +254,15 @@ def main():
     parser.add_argument("--flows", type=int, default=100000)
     parser.add_argument("--packets", type=int, default=200000)
     parser.add_argument("--seed", type=int, default=1)
+    parser.add_argument("--flow-offset", type=int, default=0)
     parser.add_argument("--no-vlan", action="store_true")
     args = parser.parse_args()
 
-    if args.flows <= 0 or args.packets <= 0:
-        raise SystemExit("--flows and --packets must be positive")
+    if args.flows <= 0 or args.packets <= 0 or args.flow_offset < 0:
+        raise SystemExit("--flows/--packets must be positive and --flow-offset non-negative")
     rules = load_spi_rules_from_xlsx(args.xlsx)
-    packets = generate_packets(rules, args.flows, args.packets, not args.no_vlan, args.seed)
+    packets = generate_packets(rules, args.flows, args.packets, not args.no_vlan,
+                               args.seed, args.flow_offset)
     write_pcap(Path(args.output), packets)
     print(f"wrote {args.output}: packets={args.packets} flows={args.flows} rules={len(rules)}")
 

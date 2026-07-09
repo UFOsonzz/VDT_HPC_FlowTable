@@ -84,11 +84,12 @@ normalize, flow-affinity dispatch, ring, worker flow table, SPI/action cache và
 drain worker. PCAP profile đi qua DPDK PCAP PMD, `rte_eth_rx_burst()` và parser
 mbuf thật.
 
-| Profile | Mode | Workers | Packets | Processed | Dropped | Active flow | PPS |
-|---|---|---:|---:|---:|---:|---:|---:|
-| synthetic-fixed-huge | synthetic | 1/1 | 200,000 | 200,000 | 0 | 20,000 | 12.61 Mpps |
-| synthetic-scale-huge | synthetic | 1 -> 4 | 400,000 | 400,000 | 0 | 100,000 | 4.92 Mpps |
-| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 200,000 | 200,000 | 0 | 100,000 | 3.17 Mpps |
+| Profile | Mode | Workers | RXQ/Dispatchers | Packets | Processed | Dropped | Active flow | PPS |
+|---|---|---:|---:|---:|---:|---:|---:|---:|
+| synthetic-fixed-huge | synthetic | 1/1 | 0/0 | 200,000 | 200,000 | 0 | 20,000 | 11.38 Mpps |
+| synthetic-scale-huge | synthetic | 1 -> 4 | 0/0 | 400,000 | 400,000 | 0 | 100,000 | 5.61 Mpps |
+| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 200,000 | 200,000 | 0 | 100,000 | 3.02 Mpps |
+| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 200,000 | 200,000 | 0 | 100,000 | 4.60 Mpps |
 
 `synthetic-scale-huge` bật logical dynamic scaling. Dispatcher dùng owner-map
 nên flow đã có owner vẫn đi về worker cũ; worker mới chỉ nhận flow mới sau thời
@@ -98,7 +99,12 @@ hơn và có thêm owner-map/control overhead. `pcap-spi-4w-huge` dùng PCAP Eth
 `pcap-spi-4w-huge` chạy bốn active worker đúng yêu cầu multi-worker. Các
 profile fixed-worker dùng `--fixed-workers`, nên dispatcher chọn worker bằng
 hash canonical key trực tiếp; profile scale động vẫn dùng owner-map để flow cũ
-không bị đổi worker khi active worker count thay đổi.
+không bị đổi worker khi active worker count thay đổi. Profile
+`pcap-spi-mq-2d4w-huge` dùng hai RX queue, hai dispatcher và hai PCAP shard
+độc lập; mỗi dispatcher có SPSC ring riêng tới từng worker, worker round-robin
+drain các ring đó. Trên laptop này profile multi-RX đạt 1.52x so với single
+dispatcher PCAP PMD, tốt cho môi trường laptop/PCAP nhưng vẫn chưa thay thế
+benchmark NIC RSS vật lý vì PCAP PMD không advertise RSS offloads.
 Fast path hiện gom work-item allocation/enqueue theo burst và worker trả
 work-item về mempool theo bulk, đồng thời timestamp RX được lấy theo burst thay
 vì từng packet.

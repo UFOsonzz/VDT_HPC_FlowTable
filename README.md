@@ -11,7 +11,9 @@ Thiết kế dùng pipeline và ownership theo core:
 3. Direction Resolver xác định tenant và uplink/downlink từ metadata, ingress
    port, VLAN hoặc IP subnet.
 4. Five-tuple được chuẩn hóa thành khóa client/server hai chiều.
-5. Symmetric hash đưa cả hai chiều vào cùng SPSC ring và cùng worker.
+5. Symmetric hash đưa cả hai chiều vào cùng worker. Với multi-dispatcher, mỗi
+   dispatcher có một SPSC ring riêng tới từng worker để tránh shared enqueue
+   lock.
 6. Worker sở hữu riêng một shard `rte_hash`, flow state, rule cache, aging và
    counters; không có lock trên fast path.
 7. SPI chỉ match khi tạo flow. Rule/action được lưu trong flow entry và tái sử
@@ -57,6 +59,9 @@ PCAP này được sinh từ `SPI_DPI_rule.xlsx` bằng
 runtime scaling và dispatch flow trực tiếp bằng hash canonical key; profile
 dynamic-scale vẫn dùng owner-map để giữ flow ownership khi active worker count
 thay đổi.
+Profile multi-RX mặc định dùng `MQ_DISPATCHERS=2`, sinh các PCAP shard riêng
+và truyền nhiều `rx_pcap` vào PCAP PMD. Nếu đổi số shard hoặc kích thước, đặt
+`MQ_REGENERATE=1` để sinh lại.
 
 ## Chạy synthetic pipeline
 
@@ -85,6 +90,20 @@ sudo ./build/flowtable \
 `--packets 0` chạy đến khi nhận `SIGINT`/`SIGTERM`. Không thêm `--tx` nếu chỉ
 muốn replay, phân loại và giải phóng packet. `--tx` bật một TX queue riêng cho
 mỗi worker và cần PMD/port hỗ trợ đủ queue.
+
+Multi-dispatcher/multi-RX chỉ bật trong fixed-worker mode. Ví dụ hai RX queue,
+hai dispatcher và bốn worker:
+
+```bash
+sudo ./build/flowtable \
+  -l 0-6 \
+  --vdev 'net_pcap0,rx_pcap=generated/spi_benchmark_mq_q0.pcap,rx_pcap=generated/spi_benchmark_mq_q1.pcap' -- \
+  --mode ethdev --port 0 --workers 4 --max-workers 4 --packets 200000 \
+  --rx-queues 2 --dispatchers 2 --fixed-workers
+```
+
+Dynamic scaling vẫn dùng single dispatcher/owner-map để tránh concurrent
+ownership update trong dispatcher.
 
 ## Runtime control
 

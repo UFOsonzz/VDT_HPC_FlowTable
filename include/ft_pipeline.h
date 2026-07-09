@@ -40,6 +40,8 @@ typedef struct {
     unsigned int lcore_id;
     int socket_id;
     struct rte_ring *input;
+    struct rte_ring *inputs[FT_MAX_DISPATCHERS];
+    uint16_t input_count;
     struct rte_mempool *work_pool;
     ft_flow_table_t flow_table;
     _Atomic(ft_rule_set_t *) *rules_ref;
@@ -73,6 +75,8 @@ typedef struct {
     const char *rule_path;
     const char *direction_path;
     uint16_t port_id;
+    uint16_t rx_queue_count;
+    uint16_t dispatcher_count;
     bool tx_enabled;
     bool cli_enabled;
     bool dashboard_enabled;

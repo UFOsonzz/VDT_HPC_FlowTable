@@ -10,6 +10,7 @@
 #include <rte_common.h>
 
 #define FT_MAX_WORKERS 16
+#define FT_MAX_DISPATCHERS 16
 #define FT_MAX_RULES 256
 #define FT_MAX_DIRECTION_RULES 128
 #define FT_NAME_LEN 64
