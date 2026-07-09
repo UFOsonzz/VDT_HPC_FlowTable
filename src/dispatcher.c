@@ -12,6 +12,7 @@
 #include <rte_pause.h>
 #include <rte_ring.h>
 
+/* Create the dynamic-mode map from flow key to current worker owner. */
 int ft_owner_table_create(ft_owner_table_t *table,
                           const char *name,
                           uint32_t capacity,
@@ -35,6 +36,7 @@ int ft_owner_table_create(ft_owner_table_t *table,
     return table->hash == NULL ? -1 : 0;
 }
 
+/* Free owner-map resources used by dynamic scaling mode. */
 void ft_owner_table_destroy(ft_owner_table_t *table) {
     if (table == NULL)
         return;
@@ -43,6 +45,26 @@ void ft_owner_table_destroy(ft_owner_table_t *table) {
     memset(table, 0, sizeof(*table));
 }
 
+/* Clear all owner assignments before rebuilding them after rebalance. */
+void ft_owner_table_reset(ft_owner_table_t *table) {
+    if (table == NULL || table->hash == NULL)
+        return;
+    rte_hash_reset(table->hash);
+}
+
+/* Store one exact flow owner; worker id is encoded as a non-null pointer. */
+int ft_owner_table_set(ft_owner_table_t *table,
+                       const ft_flow_key_t *key,
+                       uint16_t worker_id) {
+    void *data;
+
+    if (table == NULL || table->hash == NULL || key == NULL)
+        return -1;
+    data = (void *)(uintptr_t)(worker_id + 1U);
+    return rte_hash_add_key_data(table->hash, key, data) < 0 ? -1 : 0;
+}
+
+/* Reuse an existing owner or choose one from the current active worker set. */
 static int owner_table_get_or_create(ft_owner_table_t *table,
                                      const ft_flow_key_t *key,
                                      uint16_t active_worker_count,
@@ -63,8 +85,7 @@ static int owner_table_get_or_create(ft_owner_table_t *table,
 
     /* Dynamic mode pins a flow to its first selected worker. */
     selected = (uint16_t)(ft_flow_hash(key) % active_worker_count);
-    data = (void *)(uintptr_t)(selected + 1U);
-    if (rte_hash_add_key_data(table->hash, key, data) < 0)
+    if (ft_owner_table_set(table, key, selected) < 0)
         return -1;
     if (created != NULL)
         *created = true;
@@ -72,6 +93,7 @@ static int owner_table_get_or_create(ft_owner_table_t *table,
     return 0;
 }
 
+/* Select the worker for a normalized key in fixed or dynamic mode. */
 int ft_select_worker(ft_owner_table_t *table,
                      const ft_flow_key_t *key,
                      uint16_t active_worker_count,
@@ -88,6 +110,7 @@ int ft_select_worker(ft_owner_table_t *table,
     return 0;
 }
 
+/* Clamp dispatch batching to both compile-time and ring-size limits. */
 uint16_t ft_dispatch_burst_size(const ft_app_config_t *config) {
     uint32_t burst_size = config->burst_size;
 
@@ -98,6 +121,7 @@ uint16_t ft_dispatch_burst_size(const ft_app_config_t *config) {
     return (uint16_t)(burst_size == 0 ? 1U : burst_size);
 }
 
+/* Obtain a work item, using a small per-worker cache before the mempool. */
 ft_work_item_t *ft_dispatch_get_item(ft_worker_t *worker,
                                      ft_dispatch_queue_t *queue,
                                      uint16_t burst_size) {
@@ -116,6 +140,7 @@ ft_work_item_t *ft_dispatch_get_item(ft_worker_t *worker,
     return object;
 }
 
+/* Push pending work items to one worker ring, waiting for queue room. */
 static void flush_dispatch_queue(ft_worker_t *worker,
                                  ft_dispatch_queue_t *queue,
                                  uint16_t producer_id) {
@@ -137,6 +162,7 @@ static void flush_dispatch_queue(ft_worker_t *worker,
     queue->pending_count = 0;
 }
 
+/* Buffer a work item and flush when the configured dispatch burst fills. */
 void ft_dispatch_enqueue_item(ft_worker_t *worker,
                               ft_dispatch_queue_t *queue,
                               ft_work_item_t *item,
@@ -147,6 +173,7 @@ void ft_dispatch_enqueue_item(ft_worker_t *worker,
         flush_dispatch_queue(worker, queue, producer_id);
 }
 
+/* Flush all per-worker dispatch buffers for one producer/dispatcher. */
 void ft_flush_dispatch_queues(ft_worker_t *workers,
                               ft_dispatch_queue_t *queues,
                               uint16_t worker_count,
@@ -157,6 +184,7 @@ void ft_flush_dispatch_queues(ft_worker_t *workers,
     }
 }
 
+/* Return cached work items to mempools during dispatcher shutdown. */
 void ft_return_dispatch_cached_items(ft_worker_t *workers,
                                      ft_dispatch_queue_t *queues,
                                      uint16_t worker_count) {
@@ -169,6 +197,7 @@ void ft_return_dispatch_cached_items(ft_worker_t *workers,
     }
 }
 
+/* Reserve a global packet slot so multi-dispatcher runs stop consistently. */
 static bool reserve_dispatched_slot(_Atomic uint64_t *dispatched,
                                     uint64_t packet_limit) {
     uint64_t current;
@@ -188,6 +217,7 @@ static bool reserve_dispatched_slot(_Atomic uint64_t *dispatched,
     return false;
 }
 
+/* RX loop used by multi-dispatcher fixed-worker profiles. */
 int ft_dispatcher_loop(void *argument) {
     ft_dispatcher_t *dispatcher = argument;
     const ft_app_config_t *config = dispatcher->config;

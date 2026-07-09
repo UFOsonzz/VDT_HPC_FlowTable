@@ -52,6 +52,9 @@ typedef struct {
     uint16_t tx_port;
     uint16_t tx_queue;
     bool tx_enabled;
+    bool pause_enabled;
+    _Atomic bool pause_requested;
+    _Atomic bool paused;
     _Atomic bool *stop;
 } ft_worker_t;
 

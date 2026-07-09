@@ -7,6 +7,7 @@
 
 #include <rte_eal.h>
 
+/* Print EAL/application option help for invalid commands and --help. */
 static void usage(const char *program) {
     printf("Usage: %s EAL_ARGS -- [application options]\n"
            "  --mode MODE        ethdev only; kept for script compatibility\n"
@@ -31,6 +32,7 @@ static void usage(const char *program) {
            program);
 }
 
+/* Parse app options after EAL args, validate topology, and start pipeline. */
 int main(int argc, char **argv) {
     ft_app_config_t config = {
         .worker_count = 4,

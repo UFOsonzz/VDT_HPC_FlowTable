@@ -7,6 +7,7 @@
 #include <rte_ethdev.h>
 #include <rte_mempool.h>
 
+/* Configure RX/TX queues, mempool, RSS, and start the selected ethdev port. */
 int ft_configure_ethdev(uint16_t port_id,
                         uint16_t rx_queue_count,
                         uint16_t worker_count,

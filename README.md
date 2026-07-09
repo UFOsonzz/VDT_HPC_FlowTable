@@ -96,13 +96,17 @@ sudo ./build/flowtable \
 ```
 
 Dynamic scaling vẫn dùng single dispatcher/owner-map để tránh concurrent
-ownership update trong dispatcher.
+ownership update trong dispatcher. Khi scale runtime, dispatcher flush queue,
+pause worker ngắn, rebalance flow đang active theo hash mới, rebuild owner-map
+rồi resume.
 
 ## Runtime control
 
 `--workers` là số worker active ban đầu, còn `--max-workers` là số worker được
-launch sẵn để scale-up runtime. Dispatcher giữ owner-map riêng nên flow đã có
-owner không bị đổi worker khi active worker count thay đổi.
+launch sẵn để scale-up runtime. Dispatcher giữ owner-map riêng cho dynamic
+mode. Khi active worker count đổi, pipeline tạm dừng dispatch, drain queue,
+migrate flow đang active theo hash mới và rebuild owner-map để worker mới nhận
+traffic ngay cả khi PCAP PMD đang replay cùng tập flow.
 
 - `SIGUSR1`: tăng active worker count thêm một, tối đa `--max-workers`
 - `SIGUSR2`: giảm active worker count thêm một, tối thiểu một worker
@@ -136,8 +140,8 @@ scripts/run_cli_pcap.sh
 
 `scripts/run_cli_pcap.sh` mặc định chạy dynamic mode
 `--workers 2 --max-workers 4`, không truyền `--fixed-workers`. Vì vậy trong
-CLI, `scale up` tăng active worker count cho flow mới, `scale down` giảm lại.
-Flow đã có owner vẫn ở worker cũ để giữ flow affinity.
+CLI, `scale up` tăng active worker count và rebalance flow đang active sang
+worker mới; `scale down` migrate flow khỏi worker bị thu hẹp.
 Nếu muốn chạy fixed-worker giống benchmark E2E, dùng
 `FIXED_WORKERS=1 WORKERS=4 MAX_WORKERS=4 scripts/run_cli_pcap.sh`.
 

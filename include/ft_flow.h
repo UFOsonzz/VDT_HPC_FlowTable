@@ -46,6 +46,10 @@ ft_flow_entry_t *ft_flow_table_get_or_create(ft_flow_table_t *table,
 int ft_flow_table_delete(ft_flow_table_t *table,
                          const ft_flow_key_t *key,
                          bool timeout);
+int ft_flow_table_insert_existing(ft_flow_table_t *table,
+                                  const ft_flow_entry_t *source);
+int ft_flow_table_delete_migrated(ft_flow_table_t *table,
+                                  const ft_flow_key_t *key);
 uint32_t ft_flow_table_age(ft_flow_table_t *table,
                            uint64_t now,
                            uint64_t timeout_cycles,

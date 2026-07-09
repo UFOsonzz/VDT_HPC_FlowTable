@@ -84,7 +84,7 @@ void ft_rule_store_destroy(ft_rule_store_t *store);
 void ft_control_reset_signals(void);
 void ft_control_install_signal_handlers(void);
 void *ft_cli_loop(void *argument);
-void ft_apply_control_events(const ft_app_config_t *config,
+bool ft_apply_control_events(const ft_app_config_t *config,
                              ft_worker_t *workers,
                              uint16_t worker_count,
                              _Atomic uint16_t *active_worker_count,
@@ -93,13 +93,19 @@ void ft_apply_control_events(const ft_app_config_t *config,
                              _Atomic int *scale_delta,
                              _Atomic int *show_request,
                              ft_dashboard_state_t *dashboard_state,
-                             uint64_t dispatched);
+                             uint64_t dispatched,
+                             uint16_t *previous_active,
+                             uint16_t *current_active);
 
 int ft_owner_table_create(ft_owner_table_t *table,
                           const char *name,
                           uint32_t capacity,
                           int socket_id);
 void ft_owner_table_destroy(ft_owner_table_t *table);
+void ft_owner_table_reset(ft_owner_table_t *table);
+int ft_owner_table_set(ft_owner_table_t *table,
+                       const ft_flow_key_t *key,
+                       uint16_t worker_id);
 int ft_select_worker(ft_owner_table_t *table,
                      const ft_flow_key_t *key,
                      uint16_t active_worker_count,

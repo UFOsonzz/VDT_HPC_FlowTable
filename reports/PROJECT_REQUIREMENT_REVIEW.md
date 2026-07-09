@@ -46,7 +46,7 @@ Docx yêu cầu thống kê theo flow table và theo worker core. Display hiện
 | `show worker N` | chi tiết một worker core: queue/lcore/socket, packet/byte/forward/drop, flow lifecycle, `HTTP/HTTPS/DNS/TCP/UDP/OTHER`, direction counters |
 | `show traffic` | aggregate direction, aggregate traffic class, rule-hit table |
 | `show dashboard` / `--dashboard` | realtime dashboard ANSI, PPS/mbps interval, worker table, traffic class, top rule hits, Active Flow/Throughput/Packet Drop graphs |
-| `scale up/down` | tăng/giảm số active worker trong dynamic mode |
+| `scale up/down` | tăng/giảm số active worker và rebalance flow active trong dynamic mode |
 
 `show worker N` là phần còn thiếu so với ví dụ `[Worker Core 0 Statistics]`
 trong docx và đã được bổ sung ở `src/stats.c`.
@@ -93,7 +93,7 @@ allocation nhưng chưa thay thế đo CPU utilization trên server.
 
 | Advanced item | Trạng thái | Ghi chú benchmark |
 |---|---|---|
-| Dynamic Worker Scaling | Có | Không dùng trong E2E fixed-worker benchmark để tránh owner-map overhead |
+| Dynamic Worker Scaling | Có | CLI dynamic có rebalance flow active; không dùng trong E2E fixed-worker benchmark để tránh owner-map overhead |
 | Runtime rule reload | Có | `reload` CLI hoặc `SIGHUP`, áp dụng cho flow mới |
 | Rule hit statistics | Có | `show traffic`, `show dashboard`, summary `rule_hit` |
 | Lock-free flow table | Có ở fast path | Shard per worker, không shared flow-table lock |

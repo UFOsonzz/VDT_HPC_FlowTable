@@ -92,7 +92,9 @@ Các lệnh hữu ích:
   Throughput, Packet Drop.
 - `show worker N`: thống kê riêng một worker core, gồm traffic classes
   `HTTP/HTTPS/DNS/TCP/UDP/OTHER`.
-- `scale up` / `scale down`: thay đổi số active worker trong dynamic mode.
+- `scale up` / `scale down`: thay đổi số active worker trong dynamic mode và
+  rebalance flow đang active. Nhánh này không dùng trong benchmark E2E
+  fixed-worker.
 
 Chạy nhanh:
 

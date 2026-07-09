@@ -56,7 +56,7 @@ printf 'PCAP infinite_rx=%s packets=%s flows=%s\n' \
     "$pcap_infinite_rx" "$pcap_packets" "$pcap_flows"
 printf 'Active workers=%s max workers=%s fixed_workers=%s\n' \
     "$workers" "$max_workers" "$fixed_workers"
-printf 'Dynamic scaling affects new flows; existing flow owners are preserved.\n'
+printf 'Dynamic scaling rebalances active flows when worker count changes.\n'
 printf 'CLI is quiet by default; run show dashboard for realtime views.\n'
 printf 'Commands: show dashboard, show statistics, show worker, show worker N, show traffic, scale up, scale down, quit\n'
 

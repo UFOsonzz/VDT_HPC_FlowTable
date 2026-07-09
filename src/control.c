@@ -17,26 +17,31 @@ static volatile sig_atomic_t reload_signal;
 static volatile sig_atomic_t scale_up_signal;
 static volatile sig_atomic_t scale_down_signal;
 
+/* Convert process termination signals into the shared stop flag. */
 static void handle_signal(int signal_number) {
     (void)signal_number;
     force_quit = 1;
 }
 
+/* Record SIGHUP reload requests for the control loop to handle safely. */
 static void handle_reload_signal(int signal_number) {
     (void)signal_number;
     reload_signal = 1;
 }
 
+/* Record SIGUSR1 scale-up requests without doing work in the handler. */
 static void handle_scale_up_signal(int signal_number) {
     (void)signal_number;
     scale_up_signal = 1;
 }
 
+/* Record SIGUSR2 scale-down requests without doing work in the handler. */
 static void handle_scale_down_signal(int signal_number) {
     (void)signal_number;
     scale_down_signal = 1;
 }
 
+/* Reset process-wide control flags before starting a new pipeline run. */
 void ft_control_reset_signals(void) {
     force_quit = 0;
     reload_signal = 0;
@@ -44,6 +49,7 @@ void ft_control_reset_signals(void) {
     scale_down_signal = 0;
 }
 
+/* Install signal handlers for stop, rule reload, and worker scaling. */
 void ft_control_install_signal_handlers(void) {
     signal(SIGINT, handle_signal);
     signal(SIGTERM, handle_signal);
@@ -52,6 +58,7 @@ void ft_control_install_signal_handlers(void) {
     signal(SIGUSR2, handle_scale_down_signal);
 }
 
+/* Load one immutable SPI rule snapshot for workers to read lock-free. */
 static ft_rule_set_t *load_rule_snapshot(const char *path) {
     ft_rule_set_t *rules = calloc(1, sizeof(*rules));
 
@@ -64,6 +71,7 @@ static ft_rule_set_t *load_rule_snapshot(const char *path) {
     return rules;
 }
 
+/* Initialize the rule store with the first active ruleset. */
 int ft_rule_store_init(ft_rule_store_t *store, const char *path) {
     ft_rule_set_t *rules;
 
@@ -76,10 +84,12 @@ int ft_rule_store_init(ft_rule_store_t *store, const char *path) {
     return 0;
 }
 
+/* Read the currently published rule snapshot with acquire ordering. */
 ft_rule_set_t *ft_rule_store_current(ft_rule_store_t *store) {
     return atomic_load_explicit(&store->current, memory_order_acquire);
 }
 
+/* Publish a new rule snapshot and keep old snapshots until shutdown. */
 int ft_rule_store_reload(ft_rule_store_t *store, const char *path) {
     ft_rule_set_t *new_rules;
     ft_rule_set_t *old_rules;
@@ -99,6 +109,7 @@ int ft_rule_store_reload(ft_rule_store_t *store, const char *path) {
     return 0;
 }
 
+/* Free the current and retired rule snapshots during cleanup. */
 void ft_rule_store_destroy(ft_rule_store_t *store) {
     ft_rule_set_t *current = ft_rule_store_current(store);
 
@@ -108,10 +119,12 @@ void ft_rule_store_destroy(ft_rule_store_t *store) {
     memset(store, 0, sizeof(*store));
 }
 
+/* Queue a relative active-worker change for the data-plane control loop. */
 static void request_scale(_Atomic int *scale_delta, int delta) {
     atomic_fetch_add_explicit(scale_delta, delta, memory_order_release);
 }
 
+/* Ask the data-plane loop to render a CLI view and wait for completion. */
 static void request_show_value(_Atomic int *show_request,
                                _Atomic bool *stop,
                                int request) {
@@ -123,12 +136,14 @@ static void request_show_value(_Atomic int *show_request,
         rte_pause();
 }
 
+/* Convenience wrapper for enum-based CLI show requests. */
 static void request_show(_Atomic int *show_request,
                          _Atomic bool *stop,
                          ft_show_request_t request) {
     request_show_value(show_request, stop, (int)request);
 }
 
+/* Parse commands of the form "show worker N" and validate the worker id. */
 static bool parse_worker_detail(const char *line, unsigned long *worker_id) {
     char *end = NULL;
 
@@ -136,6 +151,7 @@ static bool parse_worker_detail(const char *line, unsigned long *worker_id) {
     return end != line + 12 && *end == '\0' && *worker_id < FT_MAX_WORKERS;
 }
 
+/* Terminal CLI thread that translates user commands into atomic requests. */
 void *ft_cli_loop(void *argument) {
     ft_cli_context_t *context = argument;
     char line[128];
@@ -216,7 +232,8 @@ void *ft_cli_loop(void *argument) {
     return NULL;
 }
 
-void ft_apply_control_events(const ft_app_config_t *config,
+/* Apply pending CLI/signal events inside the owning pipeline thread. */
+bool ft_apply_control_events(const ft_app_config_t *config,
                              ft_worker_t *workers,
                              uint16_t worker_count,
                              _Atomic uint16_t *active_worker_count,
@@ -225,10 +242,14 @@ void ft_apply_control_events(const ft_app_config_t *config,
                              _Atomic int *scale_delta,
                              _Atomic int *show_request,
                              ft_dashboard_state_t *dashboard_state,
-                             uint64_t dispatched) {
+                             uint64_t dispatched,
+                             uint16_t *previous_active,
+                             uint16_t *current_active) {
     int delta;
     int requested_show;
     uint16_t active;
+    uint16_t previous = 0;
+    bool scaled = false;
 
     if (reload_signal) {
         reload_signal = 0;
@@ -254,8 +275,6 @@ void ft_apply_control_events(const ft_app_config_t *config,
     delta = config->fixed_workers ?
         0 : atomic_exchange_explicit(scale_delta, 0, memory_order_acq_rel);
     if (delta != 0) {
-        uint16_t previous;
-
         active = atomic_load_explicit(active_worker_count, memory_order_acquire);
         previous = active;
         while (delta > 0 && active < worker_count) {
@@ -268,21 +287,30 @@ void ft_apply_control_events(const ft_app_config_t *config,
         }
         atomic_store_explicit(active_worker_count, active,
                               memory_order_release);
-        if (active != previous)
+        if (active != previous) {
+            scaled = true;
             printf("active worker count now %u/%u\n", active, worker_count);
+        }
     }
+
+    active = atomic_load_explicit(active_worker_count, memory_order_acquire);
+    if (previous_active != NULL)
+        *previous_active = scaled ? previous : active;
+    if (current_active != NULL)
+        *current_active = active;
+    if (scaled)
+        return true;
 
     requested_show = atomic_exchange_explicit(show_request, FT_SHOW_NONE,
                                               memory_order_acq_rel);
     if (requested_show == FT_SHOW_NONE)
-        return;
+        return scaled;
 
-    active = atomic_load_explicit(active_worker_count, memory_order_acquire);
     if (requested_show >= FT_SHOW_WORKER_DETAIL_BASE) {
         ft_stats_print_worker_detail(workers, worker_count, active,
                                      (uint16_t)(requested_show -
                                                 FT_SHOW_WORKER_DETAIL_BASE));
-        return;
+        return scaled;
     }
     switch ((ft_show_request_t)requested_show) {
     case FT_SHOW_FLOW:
@@ -306,4 +334,5 @@ void ft_apply_control_events(const ft_app_config_t *config,
                                   ft_rule_store_current(rule_store));
         break;
     }
+    return scaled;
 }

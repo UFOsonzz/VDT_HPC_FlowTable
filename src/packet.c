@@ -8,6 +8,7 @@
 #include <rte_tcp.h>
 #include <rte_udp.h>
 
+/* Order endpoints deterministically when direction cannot be resolved. */
 static int endpoint_compare(uint32_t ip_a, uint16_t port_a, uint32_t ip_b, uint16_t port_b) {
     if (ip_a < ip_b)
         return -1;
@@ -20,6 +21,7 @@ static int endpoint_compare(uint32_t ip_a, uint16_t port_a, uint32_t ip_b, uint1
     return 0;
 }
 
+/* Parse Ethernet, optional VLAN, IPv4, and TCP/UDP headers from an mbuf. */
 int ft_packet_parse_mbuf(struct rte_mbuf *mbuf, ft_packet_t *packet) {
     const struct rte_ether_hdr *ether;
     const struct rte_vlan_hdr *vlan;
@@ -90,6 +92,7 @@ int ft_packet_parse_mbuf(struct rte_mbuf *mbuf, ft_packet_t *packet) {
     return 0;
 }
 
+/* Build the canonical two-direction flow key used for affinity and SPI. */
 void ft_packet_normalize(const ft_packet_t *packet,
                     const ft_direction_config_t *directions,
                     ft_normalized_flow_t *normalized) {
@@ -135,10 +138,12 @@ void ft_packet_normalize(const ft_packet_t *packet,
     }
 }
 
+/* Hash the canonical flow key with the same seed across pipeline modules. */
 uint32_t ft_flow_hash(const ft_flow_key_t *key) {
     return rte_jhash(key, sizeof(*key), 0x9e3779b9U);
 }
 
+/* Classify normalized traffic for per-worker and dashboard counters. */
 ft_traffic_class_t ft_packet_classify(const ft_normalized_flow_t *flow) {
     if (flow->key.protocol == IPPROTO_TCP) {
         if (flow->key.server_port == 80)

@@ -133,6 +133,15 @@ sequenceDiagram
         Flow-->>Worker: cached action
     end
     Worker->>Worker: apply action and update local counters
+    opt scale up or scale down in dynamic mode
+        CLI->>RX: request active worker count change
+        RX->>Ring: flush pending dispatch queues
+        RX->>Worker: pause after worker rings drain
+        Worker-->>RX: paused
+        RX->>Flow: migrate active flow entries to new owners
+        RX->>RX: rebuild dispatcher owner map
+        RX->>Worker: resume packet processing
+    end
     CLI->>Stats: show statistics or show worker N
     Stats-->>CLI: tables and realtime dashboard values
 ```
@@ -150,9 +159,11 @@ flowchart TD
     RX --> PROC[Dispatch packets to workers]
     PROC --> CTRL{Control event?}
     CTRL -- reload --> RELOAD[Reload rules for new flows]
+    CTRL -- scale --> SCALE[Flush, pause workers, rebalance active flows]
     CTRL -- stats --> SHOW[Render live stats/dashboard]
     CTRL -- none --> RUN{Stop condition reached?}
     RELOAD --> RUN
+    SCALE --> RUN
     SHOW --> RUN
     RUN -- no --> RX
     RUN -- yes --> DRAIN[Drain rings and stop workers]

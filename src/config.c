@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Trim CSV fields in place so the loaders can compare clean tokens. */
 static char *trim(char *text) {
     char *end;
 
@@ -19,6 +20,7 @@ static char *trim(char *text) {
     return text;
 }
 
+/* Convert a textual direction from config into the internal enum. */
 static int parse_direction(const char *text, ft_direction_t *direction) {
     if (strcasecmp(text, "UPLINK") == 0)
         *direction = FT_DIR_UPLINK;
@@ -31,6 +33,7 @@ static int parse_direction(const char *text, ft_direction_t *direction) {
     return 0;
 }
 
+/* Parse CIDR text as host-order network and mask values for fast matching. */
 static int parse_prefix(const char *text, uint32_t *network, uint32_t *mask) {
     char copy[64];
     char *slash;
@@ -52,6 +55,7 @@ static int parse_prefix(const char *text, uint32_t *network, uint32_t *mask) {
     return 0;
 }
 
+/* Load direction rules and build small indexes for common match types. */
 int ft_direction_config_load(ft_direction_config_t *config, const char *path) {
     FILE *file;
     char line[256];
@@ -144,6 +148,7 @@ int ft_direction_config_load(ft_direction_config_t *config, const char *path) {
     return 0;
 }
 
+/* Test one direction rule against packet metadata and IPv4 endpoints. */
 static bool rule_matches(const ft_direction_rule_t *rule,
              uint16_t ingress_port,
              uint16_t vlan_id,
@@ -164,6 +169,7 @@ static bool rule_matches(const ft_direction_rule_t *rule,
     }
 }
 
+/* Resolve tenant and direction, honoring explicit hints before config rules. */
 bool ft_direction_resolve(const ft_direction_config_t *config,
                      uint16_t ingress_port,
                      uint16_t vlan_id,

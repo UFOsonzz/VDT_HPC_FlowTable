@@ -15,6 +15,7 @@
 #define FT_ANSI_RED "\033[31m"
 #define FT_ANSI_CYAN "\033[36m"
 
+/* Convert traffic-class counters into stable CLI labels. */
 static const char *traffic_name(ft_traffic_class_t traffic_class) {
     switch (traffic_class) {
     case FT_TRAFFIC_HTTP:
@@ -33,6 +34,7 @@ static const char *traffic_name(ft_traffic_class_t traffic_class) {
     }
 }
 
+/* Convert direction counters into stable CLI labels. */
 static const char *direction_name(unsigned int direction) {
     switch (direction) {
     case FT_DIR_UPLINK:
@@ -45,10 +47,12 @@ static const char *direction_name(unsigned int direction) {
     }
 }
 
+/* Highlight drop counters only when packets were actually dropped. */
 static const char *drop_color(uint64_t dropped) {
     return dropped == 0 ? FT_ANSI_GREEN : FT_ANSI_RED;
 }
 
+/* Show active, draining, or standby based on scale state and remaining work. */
 static const char *worker_state(const ft_worker_t *worker,
                                 uint16_t worker_index,
                                 uint16_t active_worker_count,
@@ -60,10 +64,12 @@ static const char *worker_state(const ft_worker_t *worker,
     return "standby";
 }
 
+/* Convert TSC deltas to seconds using the runtime DPDK clock rate. */
 static double cycles_to_seconds(uint64_t cycles) {
     return (double)cycles / (double)rte_get_tsc_hz();
 }
 
+/* Append one sample to the fixed-size dashboard history ring. */
 static void dashboard_history_append(ft_dashboard_state_t *state,
                                      double active_flows,
                                      double pps,
@@ -79,6 +85,7 @@ static void dashboard_history_append(ft_dashboard_state_t *state,
         state->history_count++;
 }
 
+/* Translate logical graph position into circular history storage index. */
 static uint16_t dashboard_history_index(const ft_dashboard_state_t *state,
                                         uint16_t position) {
     if (state->history_count < FT_DASHBOARD_HISTORY)
@@ -87,6 +94,7 @@ static uint16_t dashboard_history_index(const ft_dashboard_state_t *state,
                       FT_DASHBOARD_HISTORY);
 }
 
+/* Find a graph scale ceiling for the selected history series. */
 static double dashboard_history_max(const ft_dashboard_state_t *state,
                                     const double *history) {
     double maximum = 0.0;
@@ -100,6 +108,7 @@ static double dashboard_history_max(const ft_dashboard_state_t *state,
     return maximum;
 }
 
+/* Render one compact ASCII graph line for the realtime dashboard. */
 static void print_graph_line(const char *label,
                              const ft_dashboard_state_t *state,
                              const double *history,
@@ -125,6 +134,7 @@ static void print_graph_line(const char *label,
     printf("|\n");
 }
 
+/* Update interval-rate state and append one dashboard history sample. */
 static void update_runtime_window(const ft_stats_snapshot_t *snapshot,
                                   ft_dashboard_state_t *state,
                                   uint64_t now,
@@ -167,10 +177,12 @@ static void update_runtime_window(const ft_stats_snapshot_t *snapshot,
                              (double)*drop_delta);
 }
 
+/* Print a consistent colored heading for CLI views. */
 void ft_stats_print_title(const char *title) {
     printf(FT_ANSI_BOLD FT_ANSI_CYAN "%s" FT_ANSI_RESET "\n", title);
 }
 
+/* Print non-zero rule hit counters, optionally limited to top rows. */
 static void print_rule_table(const ft_stats_snapshot_t *snapshot,
                              const ft_rule_set_t *rules,
                              unsigned int limit) {
@@ -197,6 +209,7 @@ static void print_rule_table(const ft_stats_snapshot_t *snapshot,
     printf("+------+------------------------------+----------+------------+\n");
 }
 
+/* Sum all input rings feeding one worker across dispatcher producers. */
 static unsigned int worker_queue_count(const ft_worker_t *worker) {
     unsigned int queued = 0;
 
@@ -207,6 +220,7 @@ static unsigned int worker_queue_count(const ft_worker_t *worker) {
     return queued;
 }
 
+/* Aggregate per-worker counters into one snapshot for display. */
 static void collect_stats(const ft_worker_t *workers,
                           uint16_t worker_count,
                           ft_stats_snapshot_t *snapshot) {
@@ -233,6 +247,7 @@ static void collect_stats(const ft_worker_t *workers,
     }
 }
 
+/* Print global packet, byte, flow, and rule counters for the CLI. */
 void ft_stats_print_statistics(const ft_worker_t *workers,
                                uint16_t worker_count,
                                uint16_t active_worker_count,
@@ -268,6 +283,7 @@ void ft_stats_print_statistics(const ft_worker_t *workers,
            snapshot.total_rule_hits, rules == NULL ? 0 : rules->count);
 }
 
+/* Print per-worker flow lifecycle counters and totals. */
 void ft_stats_print_flow(const ft_worker_t *workers,
                          uint16_t worker_count,
                          uint16_t active_worker_count,
@@ -309,6 +325,7 @@ void ft_stats_print_flow(const ft_worker_t *workers,
            active, created, deleted, timed_out);
 }
 
+/* Print a one-row-per-worker view for queue and packet balance. */
 void ft_stats_print_worker(const ft_worker_t *workers,
                            uint16_t worker_count,
                            uint16_t active_worker_count) {
@@ -336,6 +353,7 @@ void ft_stats_print_worker(const ft_worker_t *workers,
     printf("+--------+----------+-------+--------+--------+--------------+--------------+--------------+--------------+\n");
 }
 
+/* Print detailed counters for one selected worker core. */
 void ft_stats_print_worker_detail(const ft_worker_t *workers,
                                   uint16_t worker_count,
                                   uint16_t active_worker_count,
@@ -391,12 +409,14 @@ void ft_stats_print_worker_detail(const ft_worker_t *workers,
     printf("+------------+--------------+\n");
 }
 
+/* Keep traffic view naming separate from the generic rule table helper. */
 static void print_rule_hits(const ft_stats_snapshot_t *snapshot,
                             const ft_rule_set_t *rules,
                             unsigned int limit) {
     print_rule_table(snapshot, rules, limit);
 }
 
+/* Print aggregate direction, traffic class, and SPI rule-hit tables. */
 void ft_stats_print_traffic(const ft_worker_t *workers,
                             uint16_t worker_count,
                             const ft_rule_set_t *rules) {
@@ -424,6 +444,7 @@ void ft_stats_print_traffic(const ft_worker_t *workers,
     print_rule_hits(&snapshot, rules, 0);
 }
 
+/* Render the realtime ANSI dashboard used by CLI and dashboard mode. */
 void ft_stats_print_dashboard(const ft_worker_t *workers,
                               uint16_t worker_count,
                               uint16_t active_worker_count,
@@ -531,6 +552,7 @@ void ft_stats_print_dashboard(const ft_worker_t *workers,
     fflush(stdout);
 }
 
+/* Print a single-line live snapshot for script-friendly monitoring. */
 void ft_stats_print_live(const ft_worker_t *workers,
                          uint16_t worker_count,
                          uint16_t active_worker_count,
@@ -552,6 +574,7 @@ void ft_stats_print_live(const ft_worker_t *workers,
            snapshot.total_rule_hits, rules == NULL ? 0 : rules->count);
 }
 
+/* Print final summary lines consumed by benchmark and report scripts. */
 void ft_stats_print_summary(const ft_worker_t *workers,
                             uint16_t worker_count,
                             uint16_t active_worker_count,

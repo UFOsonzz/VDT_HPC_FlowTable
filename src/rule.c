@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Trim one CSV field in place before parsing rule columns. */
 static char *trim(char *text) {
     char *end;
 
@@ -19,12 +20,14 @@ static char *trim(char *text) {
     return text;
 }
 
+/* Treat spreadsheet wildcards and empty cells as match-any. */
 static bool is_any(const char *text) {
     return text == NULL || *text == '\0' || strcmp(text, "*") == 0 ||
            strcasecmp(text, "any") == 0 || strcasecmp(text, "NA") == 0 ||
            strcasecmp(text, "N/A") == 0;
 }
 
+/* Parse dotted IPv4 into host byte order for rule comparison. */
 static int parse_ipv4(const char *text, uint32_t *ip) {
     struct in_addr address;
 
@@ -34,6 +37,7 @@ static int parse_ipv4(const char *text, uint32_t *ip) {
     return 0;
 }
 
+/* Build one IPv4 matcher from exact address or prefix columns. */
 static int parse_ipv4_match(const char *prefix_text,
                  const char *exact_text,
                  ft_ipv4_match_t *match) {
@@ -68,11 +72,13 @@ static int parse_ipv4_match(const char *prefix_text,
     return 0;
 }
 
+/* Parse a TCP/UDP port field while preserving wildcard semantics. */
 static void parse_port(const char *text, ft_port_match_t *port) {
     port->any = is_any(text);
     port->port = port->any ? 0 : (uint16_t)strtoul(text, NULL, 10);
 }
 
+/* Map optional CSV action text to the data-plane action enum. */
 static ft_action_t parse_action(const char *text) {
     if (text != NULL && strcasecmp(text, "DROP") == 0)
         return FT_ACTION_DROP;
@@ -83,6 +89,7 @@ static ft_action_t parse_action(const char *text) {
     return FT_ACTION_FORWARD;
 }
 
+/* Sort lower precedence first and keep original ids as a stable tie-breaker. */
 static int compare_rule(const void *left, const void *right) {
     const ft_rule_t *a = left;
     const ft_rule_t *b = right;
@@ -94,6 +101,7 @@ static int compare_rule(const void *left, const void *right) {
     return (int)a->id - (int)b->id;
 }
 
+/* Load SPI rules from CSV and guarantee there is always a default rule. */
 int ft_rule_set_load(ft_rule_set_t *set, const char *path) {
     FILE *file;
     char line[1024];
@@ -181,10 +189,12 @@ int ft_rule_set_load(ft_rule_set_t *set, const char *path) {
     return 0;
 }
 
+/* Check an IPv4 endpoint against wildcard, exact, or prefix matchers. */
 static bool ip_matches(const ft_ipv4_match_t *match, uint32_t ip) {
     return match->any || (ip & match->mask) == match->network;
 }
 
+/* Return the first SPI rule that matches a normalized flow key. */
 const ft_rule_t *ft_rule_match(const ft_rule_set_t *set, const ft_flow_key_t *key) {
     uint16_t i;
 
@@ -206,6 +216,7 @@ const ft_rule_t *ft_rule_match(const ft_rule_set_t *set, const ft_flow_key_t *ke
     return NULL;
 }
 
+/* Format rule actions for CLI tables, summaries, and reports. */
 const char *ft_action_name(ft_action_t action) {
     switch (action) {
     case FT_ACTION_DROP:
