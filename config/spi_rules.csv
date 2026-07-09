@@ -1,0 +1,17 @@
+# Extracted from sheet SPI_rule in SPI_DPI_rule.xlsx.
+# precedence,rule_name,group,dst_prefix,dst_ip,dst_port,protocol,src_prefix,src_ip,src_port,action
+precedence,rule_name,group,dst_prefix,dst_ip,dst_port,protocol,src_prefix,src_ip,src_port,action
+100,f_l34_facebook_1,fg_l34_facebook,31.13.64.0/18,NA,any,any,NA,NA,any,FORWARD
+100,f_l34_facebook_2,fg_l34_facebook,66.220.144.0/20,NA,any,any,NA,NA,any,FORWARD
+100,f_l34_facebook_3,fg_l34_facebook,69.63.176.0/20,NA,any,any,NA,NA,any,FORWARD
+100,f_l34_facebook_4,fg_l34_facebook,157.240.0.0/16,NA,any,any,NA,NA,any,FORWARD
+100,f_l34_facebook_4,fg_l34_facebook,NA,69.220.144.5,any,any,NA,NA,any,FORWARD
+101,f_l34_youtube_1,fg_l34_youtube,142.250.0.0/15,NA,443,tcp,NA,NA,any,FORWARD
+101,f_l34_youtube_2,fg_l34_youtube,172.217.0.0/16,NA,443,tcp,NA,NA,any,FORWARD
+101,f_l34_youtube_3,fg_l34_youtube,216.58.192.0/19,NA,443,tcp,NA,NA,any,FORWARD
+101,f_l34_youtube_4,fg_l34_youtube,NA,74.125.0.1,443,tcp,NA,NA,any,FORWARD
+102,f_l34_http_all,fg_l34_http_sdf1003,NA,NA,80,tcp,NA,NA,any,FORWARD
+103,f_l34_https_all,fg_l34_https_sdf1004,NA,NA,443,tcp,NA,NA,any,FORWARD
+104,f_l34_dns_udp,fg_l34_dns_sdf1005,NA,NA,53,udp,NA,NA,any,FORWARD
+104,f_l34_dns_tcp,fg_l34_dns_sdf1005,NA,NA,53,tcp,NA,NA,any,FORWARD
+65535,DEFAULT,default,NA,NA,any,any,NA,NA,any,FORWARD

@@ -17,7 +17,8 @@ SOURCES := \
 	src/rx_loop.c \
 	src/packet.c \
 	src/config.c \
-	src/flow.c
+	src/flow.c \
+	src/rule.c
 
 .PHONY: all clean
 
