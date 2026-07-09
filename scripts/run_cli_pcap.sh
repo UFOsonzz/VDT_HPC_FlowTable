@@ -10,7 +10,7 @@ pcap_infinite_rx="${PCAP_INFINITE_RX:-1}"
 pcap_rx_mbufs="${PCAP_RX_MBUFS:-$((pcap_packets + 8192))}"
 workers="${WORKERS:-4}"
 packets="${PACKETS:-0}"
-stats_interval="${STATS_INTERVAL:-1}"
+stats_interval="${STATS_INTERVAL:-0}"
 lcore_end="${LCORE_END:-$workers}"
 binary="${FLOWTABLE_BIN:-./build/flowtable}"
 pcap_vdev="net_pcap0,rx_pcap=$pcap_file"
@@ -48,6 +48,7 @@ fi
 printf 'Opening FlowTable CLI for %s\n' "$pcap_file"
 printf 'PCAP infinite_rx=%s packets=%s flows=%s\n' \
     "$pcap_infinite_rx" "$pcap_packets" "$pcap_flows"
+printf 'CLI is quiet by default; run show benchmark or show dashboard for realtime views.\n'
 printf 'Commands: show dashboard, show benchmark, show statistics, show worker, show worker N, show traffic, quit\n'
 
 env XDG_RUNTIME_DIR=/tmp "$binary" \

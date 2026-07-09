@@ -184,6 +184,8 @@ static void begin_measurement_window(ft_ethdev_runtime_t *runtime) {
     runtime->start_cycles = rte_get_tsc_cycles();
     runtime->dashboard_state.start_cycles = runtime->start_cycles;
     runtime->dashboard_state.last_cycles = runtime->start_cycles;
+    if (config->cli_enabled)
+        return;
     if (config->stats_interval_seconds != 0) {
         runtime->next_stats_cycles =
             runtime->start_cycles +

@@ -107,7 +107,7 @@ owner không bị đổi worker khi active worker count thay đổi.
 - `SIGUSR1`: tăng active worker count thêm một, tối đa `--max-workers`
 - `SIGUSR2`: giảm active worker count thêm một, tối thiểu một worker
 - `SIGHUP`: reload file `--rules` cho flow mới; flow cũ giữ action đã cache
-- `--stats-interval N`: in live stats mỗi `N` giây
+- `--stats-interval N`: in live stats mỗi `N` giây khi không bật CLI
 - `--dashboard`: đổi output interval thành dashboard realtime ANSI; nếu chưa
   truyền `--stats-interval` thì interval mặc định là 1 giây. Dashboard có
   graph ASCII cho Active Flow, Throughput và Packet Drop.
@@ -118,6 +118,8 @@ owner không bị đổi worker khi active worker count thay đổi.
   `show benchmark` hiển thị elapsed time, interval/average PPS,
   flow-create-rate và packet drops theo thời gian thực. Khi PCAP PMD bật
   `infinite_rx=1`, lệnh này dùng được như một màn hình benchmark live.
+  Khi bật `--cli`, pipeline không tự in `live ...` theo interval để terminal
+  không bị spam và vẫn nhập lệnh bình thường.
   `show worker N` hiển thị riêng một worker core, gồm queue/lcore/socket,
   packet/byte/drop, flow lifecycle, sáu traffic classes
   `HTTP/HTTPS/DNS/TCP/UDP/OTHER` và direction counters.

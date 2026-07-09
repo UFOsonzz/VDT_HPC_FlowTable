@@ -83,6 +83,8 @@ riêng tới từng worker, worker round-robin drain các ring đó.
 
 `scripts/run_cli_pcap.sh` bật PCAP PMD với `infinite_rx=1` mặc định, nên CLI
 có thể theo dõi benchmark live thay vì chỉ xem summary cuối run.
+CLI không tự in `live ...` theo interval; terminal chỉ cập nhật khi nhập lệnh
+để không che prompt.
 
 Các lệnh hữu ích:
 
