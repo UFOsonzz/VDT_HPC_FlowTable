@@ -69,6 +69,25 @@ laptop đang chạy môi trường IDE nên con số này chỉ dùng làm smoke
 Invariant quan trọng là đủ 1.000.000 packet, đúng 100.000 bidirectional flow và
 không mất gói. Worker-engine benchmark bên dưới tách khỏi dispatcher/resolver.
 
+## End-to-end benchmark hiện tại
+
+Nguồn chính xác: `reports/e2e_benchmark_results.csv`.
+
+Các profile này chạy binary `build/flowtable`, vì vậy đo cả dispatcher,
+normalize, owner-map, ring, worker flow table, SPI/action cache và drain worker.
+`pcap-vlan` đi qua DPDK PCAP PMD, `rte_eth_rx_burst()` và parser mbuf thật.
+
+| Profile | Mode | Workers | Packets | Processed | Dropped | Active flow | PPS |
+|---|---|---:|---:|---:|---:|---:|---:|
+| synthetic-fixed | synthetic | 1/1 | 50,000 | 50,000 | 0 | 5,000 | 6.43 Mpps |
+| synthetic-scale | synthetic | 1 -> 2 | 50,000 | 50,000 | 0 | 20,000 | 2.98 Mpps |
+| pcap-vlan | ethdev/PCAP PMD | 1/1 | 10 | 10 | 0 | 1 | 0.16 Mpps |
+
+`synthetic-scale` bật logical dynamic scaling. Dispatcher dùng owner-map nên flow
+đã có owner vẫn đi về worker cũ; worker mới chỉ nhận flow mới sau thời điểm
+scale. PPS profile này không so trực tiếp với fixed profile vì số flow lớn hơn
+và có thêm owner-map/control overhead.
+
 ## Worker scale benchmark
 
 Nguồn chính xác: `reports/benchmark_results.csv`.
@@ -104,7 +123,6 @@ plane phải local/cache aligned.
 ## Chưa đo
 
 - NIC line rate và packet loss vật lý
-- PCAP PMD replay vì chưa có `traffic.pcap`
 - p50/p99 latency
 - aging degradation sau timeout 5 giây
 - dual-socket NUMA local/remote

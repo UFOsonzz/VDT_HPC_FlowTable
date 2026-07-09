@@ -40,6 +40,7 @@ Build và test:
 make -j
 make test
 make benchmark
+make benchmark-e2e
 ```
 
 ## Chạy synthetic pipeline
@@ -69,6 +70,22 @@ sudo ./build/flowtable \
 `--packets 0` chạy đến khi nhận `SIGINT`/`SIGTERM`. Không thêm `--tx` nếu chỉ
 muốn replay, phân loại và giải phóng packet. `--tx` bật một TX queue riêng cho
 mỗi worker và cần PMD/port hỗ trợ đủ queue.
+
+## Runtime control
+
+`--workers` là số worker active ban đầu, còn `--max-workers` là số worker được
+launch sẵn để scale-up runtime. Dispatcher giữ owner-map riêng nên flow đã có
+owner không bị đổi worker khi active worker count thay đổi.
+
+- `SIGUSR1`: tăng active worker count thêm một, tối đa `--max-workers`
+- `SIGUSR2`: giảm active worker count thêm một, tối thiểu một worker
+- `SIGHUP`: reload file `--rules` cho flow mới; flow cũ giữ action đã cache
+- `--stats-interval N`: in live terminal dashboard mỗi `N` giây
+- `--cli`: bật CLI terminal trong ethdev mode với `show`, `rules`, `reload`,
+  `scale up`, `scale down`, `quit`
+
+Synthetic mode có thể tự scale-up bằng `--scale-interval N`, hữu ích cho smoke
+test dynamic scaling có new-flow sau thời điểm scale.
 
 ## Rule và xác định hướng
 

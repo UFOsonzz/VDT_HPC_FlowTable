@@ -14,7 +14,7 @@ BUILD_DIR := build
 CORE_SOURCES := src/config.c src/flow.c src/packet.c src/rule.c
 PIPELINE_SOURCES := src/pipeline.c
 
-.PHONY: all clean test benchmark workbook
+.PHONY: all clean test benchmark benchmark-e2e workbook
 
 all: $(BUILD_DIR)/flowtable $(BUILD_DIR)/test_flowtable $(BUILD_DIR)/flowtable_benchmark
 
@@ -36,6 +36,9 @@ test: $(BUILD_DIR)/test_flowtable
 
 benchmark: $(BUILD_DIR)/flowtable_benchmark
 	./scripts/run_benchmark.sh
+
+benchmark-e2e: $(BUILD_DIR)/flowtable
+	./scripts/run_e2e_benchmark.sh
 
 workbook:
 	python3 scripts/generate_test_workbook.py
