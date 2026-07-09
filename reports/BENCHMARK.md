@@ -100,25 +100,21 @@ mbuf thật.
 
 | Profile | Mode | Workers | RXQ/Dispatchers | Warmup/Measured | Packets | Processed | Dropped | Active flow | PPS |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| synthetic-fixed-huge | synthetic | 1/1 | 0/0 | 2/5 | 1,000,000 | 1,000,000 | 0 | 20,000 | 3.61 Mpps |
-| synthetic-scale-huge | synthetic | 1 -> 4 | 0/0 | 2/5 | 1,000,000 | 1,000,000 | 0 | 100,000 | 2.97 Mpps |
-| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 3.14 Mpps |
-| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 4.35 Mpps |
+| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 3.25 Mpps |
+| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 4.59 Mpps |
 
-`synthetic-scale-huge` bật logical dynamic scaling. Dispatcher dùng owner-map
-nên flow đã có owner vẫn đi về worker cũ; worker mới chỉ nhận flow mới sau thời
-điểm scale. PPS profile này không so trực tiếp với fixed profile vì số flow lớn
-hơn và có thêm owner-map/control overhead. `pcap-spi-4w-huge` dùng PCAP Ethernet
-được sinh từ `SPI_DPI_rule.xlsx` qua `scripts/generate_spi_pcap.py`; profile
-`pcap-spi-4w-huge` chạy bốn active worker đúng yêu cầu multi-worker. Các
-profile fixed-worker dùng `--fixed-workers`, nên dispatcher chọn worker bằng
-hash canonical key trực tiếp; profile scale động vẫn dùng owner-map để flow cũ
-không bị đổi worker khi active worker count thay đổi. Profile
+E2E benchmark hiện chỉ giữ PCAP profiles vì synthetic không còn phản ánh
+workload cần so sánh: 100.000 flow, khoảng hai packet cho mỗi flow và
+`infinite_rx=1`. `pcap-spi-4w-huge` dùng PCAP Ethernet được sinh từ
+`SPI_DPI_rule.xlsx` qua `scripts/generate_spi_pcap.py`; profile này chạy bốn
+active worker đúng yêu cầu multi-worker. Các profile fixed-worker dùng
+`--fixed-workers`, nên dispatcher chọn worker bằng hash canonical key trực
+tiếp. Profile
 `pcap-spi-mq-2d4w-huge` dùng hai RX queue, hai dispatcher và hai PCAP shard
 độc lập; mỗi dispatcher có SPSC ring riêng tới từng worker, worker round-robin
 drain các ring đó. Profile shard này bật `--per-dispatcher-limit` để
 `infinite_rx=1` không làm dispatcher nhanh đọc vòng lại shard trước khi shard
-còn lại phát đủ packet. Trên laptop này profile multi-RX đạt 1.38x so với single
+còn lại phát đủ packet. Trên laptop này profile multi-RX đạt 1.41x so với single
 dispatcher PCAP PMD, khá hơn single-dispatcher trong môi trường laptop/PCAP
 nhưng vẫn chưa thay thế
 benchmark NIC RSS vật lý vì PCAP PMD không advertise RSS offloads.

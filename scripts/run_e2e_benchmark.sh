@@ -221,20 +221,6 @@ generate_mq_pcaps() {
     printf '%s\n' "$vdev"
 }
 
-append_result synthetic-fixed-huge synthetic 1 1 0 0 1000000 20000 \
-    env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
-        -l 0-1 --huge-dir "$mount_point" --in-memory --no-pci --no-telemetry -- \
-        --mode synthetic --workers 1 --max-workers 1 \
-        --packets 1000000 --flows 20000 --flow-capacity 32768 --ring-size 2048 \
-        --fixed-workers
-
-append_result synthetic-scale-huge synthetic 1 4 0 0 1000000 100000 \
-    env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
-        -l 0-4 --huge-dir "$mount_point" --in-memory --no-pci --no-telemetry -- \
-        --mode synthetic --workers 1 --max-workers 4 \
-        --packets 1000000 --flows 100000 --flow-capacity 131072 --ring-size 4096 \
-        --scale-interval 100000
-
 pcap_vdev="net_pcap0,rx_pcap=$pcap_file"
 if ((pcap_infinite_rx == 1)); then
     pcap_vdev="${pcap_vdev},infinite_rx=1"
