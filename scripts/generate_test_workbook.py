@@ -90,7 +90,7 @@ PERFORMANCE = [
      "22.51 / 45.62 / 66.66 Mpps", "PASS", ""],
     ["PT-005", "End-to-end pipeline", "200k packets, 100k generated SPI flows",
      "PPS and loss", "processed=dispatched; no unexpected drop",
-     "make benchmark-e2e", "3.25 Mpps single PCAP; 4.59 Mpps multi-RX PCAP; zero loss",
+     "make benchmark-e2e", "5.46 Mpps single PCAP; 7.24 Mpps multi-RX PCAP; zero loss",
      "PASS", "infinite_rx=1; 2 warmup + 5 measured runs; median PPS"],
     ["PT-006", "Flow creation rate", "All packets create new flows",
      "Flows/s", "Establish server-specific baseline", "Benchmark variant",

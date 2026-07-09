@@ -100,8 +100,8 @@ mbuf thật.
 
 | Profile | Mode | Workers | RXQ/Dispatchers | Warmup/Measured | Packets | Processed | Dropped | Active flow | PPS |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 3.25 Mpps |
-| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 4.59 Mpps |
+| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 5.46 Mpps |
+| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 7.24 Mpps |
 
 E2E benchmark hiện chỉ giữ PCAP profiles vì synthetic không còn phản ánh
 workload cần so sánh: 100.000 flow, khoảng hai packet cho mỗi flow và
@@ -114,9 +114,9 @@ tiếp. Profile
 độc lập; mỗi dispatcher có SPSC ring riêng tới từng worker, worker round-robin
 drain các ring đó. Profile shard này bật `--per-dispatcher-limit` để
 `infinite_rx=1` không làm dispatcher nhanh đọc vòng lại shard trước khi shard
-còn lại phát đủ packet. Trên laptop này profile multi-RX đạt 1.41x so với single
-dispatcher PCAP PMD, khá hơn single-dispatcher trong môi trường laptop/PCAP
-nhưng vẫn chưa thay thế
+còn lại phát đủ packet. Sau khi restart máy và tắt browser, profile multi-RX
+đạt 1.33x so với single dispatcher PCAP PMD, khá hơn single-dispatcher trong
+môi trường laptop/PCAP nhưng vẫn chưa thay thế
 benchmark NIC RSS vật lý vì PCAP PMD không advertise RSS offloads.
 Fast path hiện gom work-item allocation/enqueue theo burst và worker trả
 work-item về mempool theo bulk, đồng thời timestamp RX được lấy theo burst thay
