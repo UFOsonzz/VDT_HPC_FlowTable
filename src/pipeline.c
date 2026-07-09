@@ -1,4 +1,5 @@
 #include "ft_pipeline.h"
+#include "ft_stats.h"
 
 #include <inttypes.h>
 #include <pthread.h>
@@ -55,30 +56,9 @@ typedef enum {
     FT_SHOW_FLOW,
     FT_SHOW_WORKER,
     FT_SHOW_TRAFFIC,
-    FT_SHOW_DASHBOARD
+    FT_SHOW_DASHBOARD,
+    FT_SHOW_WORKER_DETAIL_BASE = 1000
 } ft_show_request_t;
-
-typedef struct {
-    uint64_t packets;
-    uint64_t bytes;
-    uint64_t forwarded;
-    uint64_t dropped;
-    uint64_t active_flows;
-    uint64_t created_flows;
-    uint64_t deleted_flows;
-    uint64_t timed_out_flows;
-    uint64_t direction[3];
-    uint64_t traffic[FT_TRAFFIC_CLASS_COUNT];
-    uint64_t rule_hits[FT_MAX_RULES];
-    uint64_t total_rule_hits;
-} ft_stats_snapshot_t;
-
-typedef struct {
-    uint64_t last_cycles;
-    uint64_t last_packets;
-    uint64_t last_bytes;
-    uint64_t last_dropped;
-} ft_dashboard_state_t;
 
 typedef struct {
     ft_worker_t *workers;
@@ -284,80 +264,6 @@ static void publish_stats(ft_worker_t *worker) {
                           worker->flow_table.timed_out, memory_order_relaxed);
 }
 
-static const char *traffic_name(ft_traffic_class_t traffic_class) {
-    switch (traffic_class) {
-    case FT_TRAFFIC_HTTP:
-        return "HTTP";
-    case FT_TRAFFIC_HTTPS:
-        return "HTTPS";
-    case FT_TRAFFIC_DNS:
-        return "DNS";
-    case FT_TRAFFIC_TCP:
-        return "TCP";
-    case FT_TRAFFIC_UDP:
-        return "UDP";
-    case FT_TRAFFIC_OTHER:
-    default:
-        return "OTHER";
-    }
-}
-
-static const char *direction_name(unsigned int direction) {
-    switch (direction) {
-    case FT_DIR_UPLINK:
-        return "UPLINK";
-    case FT_DIR_DOWNLINK:
-        return "DOWNLINK";
-    case FT_DIR_UNKNOWN:
-    default:
-        return "UNKNOWN";
-    }
-}
-
-static const char *drop_color(uint64_t dropped) {
-    return dropped == 0 ? FT_ANSI_GREEN : FT_ANSI_RED;
-}
-
-static void print_title(const char *title) {
-    printf(FT_ANSI_BOLD FT_ANSI_CYAN "%s" FT_ANSI_RESET "\n", title);
-}
-
-static void print_rule_table(const ft_stats_snapshot_t *snapshot,
-                             const ft_rule_set_t *rules,
-                             unsigned int limit) {
-    unsigned int printed = 0;
-
-    if (rules == NULL)
-        return;
-    printf("+------+------------------------------+----------+------------+\n");
-    printf("| id   | rule                         | action   | hits       |\n");
-    printf("+------+------------------------------+----------+------------+\n");
-    for (uint16_t rule_id = 0; rule_id < rules->count; rule_id++) {
-        if (snapshot->rule_hits[rule_id] == 0)
-            continue;
-        printf("| %-4u | %-28.28s | %-8s | %10" PRIu64 " |\n",
-               rule_id, rules->rules[rule_id].name,
-               ft_action_name(rules->rules[rule_id].action),
-               snapshot->rule_hits[rule_id]);
-        printed++;
-        if (limit != 0 && printed == limit)
-            break;
-    }
-    if (printed == 0)
-        printf("| %-4s | %-28s | %-8s | %10u |\n", "-", "none", "-", 0U);
-    printf("+------+------------------------------+----------+------------+\n");
-}
-
-static unsigned int worker_queue_count(const ft_worker_t *worker) {
-    unsigned int queued = 0;
-
-    for (uint16_t i = 0; i < worker->input_count; i++) {
-        if (worker->inputs[i] != NULL)
-            queued += rte_ring_count(worker->inputs[i]);
-    }
-    return queued;
-}
-
 static bool worker_inputs_empty(const ft_worker_t *worker) {
     for (uint16_t i = 0; i < worker->input_count; i++) {
         if (worker->inputs[i] != NULL && !rte_ring_empty(worker->inputs[i]))
@@ -366,298 +272,25 @@ static bool worker_inputs_empty(const ft_worker_t *worker) {
     return true;
 }
 
-static void collect_stats(const ft_worker_t *workers,
-                          uint16_t worker_count,
-                          ft_stats_snapshot_t *snapshot) {
-    memset(snapshot, 0, sizeof(*snapshot));
-    for (uint16_t i = 0; i < worker_count; i++) {
-        snapshot->packets += workers[i].local.packets;
-        snapshot->bytes += workers[i].local.bytes;
-        snapshot->forwarded += workers[i].local.forwarded;
-        snapshot->dropped += workers[i].local.dropped;
-        snapshot->active_flows += workers[i].flow_table.active;
-        snapshot->created_flows += workers[i].flow_table.created;
-        snapshot->deleted_flows += workers[i].flow_table.deleted;
-        snapshot->timed_out_flows += workers[i].flow_table.timed_out;
-        for (unsigned int direction = 0; direction < RTE_DIM(snapshot->direction);
-             direction++)
-            snapshot->direction[direction] += workers[i].local.direction[direction];
-        for (uint16_t traffic_id = 0; traffic_id < FT_TRAFFIC_CLASS_COUNT;
-             traffic_id++)
-            snapshot->traffic[traffic_id] += workers[i].local.traffic[traffic_id];
-        for (uint16_t rule_id = 0; rule_id < FT_MAX_RULES; rule_id++) {
-            snapshot->rule_hits[rule_id] += workers[i].local.rule_hits[rule_id];
-            snapshot->total_rule_hits += workers[i].local.rule_hits[rule_id];
-        }
-    }
-}
-
-static void print_statistics_view(const ft_worker_t *workers,
-                                  uint16_t worker_count,
-                                  uint16_t active_worker_count,
-                                  uint64_t dispatched,
-                                  const ft_rule_set_t *rules) {
-    ft_stats_snapshot_t snapshot;
-
-    collect_stats(workers, worker_count, &snapshot);
-    print_title("show statistics");
-    printf("+----------------+----------------+----------------+\n");
-    printf("| active workers | launched       | dispatched     |\n");
-    printf("+----------------+----------------+----------------+\n");
-    printf("| %14u | %14u | %14" PRIu64 " |\n",
-           active_worker_count, worker_count, dispatched);
-    printf("+----------------+----------------+----------------+\n\n");
-    printf("+--------------+--------------+--------------+--------------+\n");
-    printf("| processed    | bytes        | forwarded    | dropped      |\n");
-    printf("+--------------+--------------+--------------+--------------+\n");
-    printf("| %12" PRIu64 " | %12" PRIu64 " | %12" PRIu64 " | %s%12" PRIu64
-           FT_ANSI_RESET " |\n",
-           snapshot.packets, snapshot.bytes, snapshot.forwarded,
-           drop_color(snapshot.dropped), snapshot.dropped);
-    printf("+--------------+--------------+--------------+--------------+\n\n");
-    printf("+--------------+--------------+--------------+--------------+\n");
-    printf("| active flows | created      | deleted      | timed out    |\n");
-    printf("+--------------+--------------+--------------+--------------+\n");
-    printf("| %12" PRIu64 " | %12" PRIu64 " | %12" PRIu64 " | %12" PRIu64
-           " |\n",
-           snapshot.active_flows, snapshot.created_flows,
-           snapshot.deleted_flows, snapshot.timed_out_flows);
-    printf("+--------------+--------------+--------------+--------------+\n");
-    printf("rule_hits=%" PRIu64 " rules=%u\n",
-           snapshot.total_rule_hits, rules == NULL ? 0 : rules->count);
-}
-
-static void print_flow_view(const ft_worker_t *workers,
-                            uint16_t worker_count,
-                            uint16_t active_worker_count,
-                            uint64_t dispatched) {
-    uint64_t active = 0;
-    uint64_t created = 0;
-    uint64_t deleted = 0;
-    uint64_t timed_out = 0;
-
-    print_title("show flow");
-    printf("active_workers=%u launched_workers=%u dispatched=%" PRIu64 "\n\n",
-           active_worker_count, worker_count, dispatched);
-    printf("+--------+--------------+--------------+--------------+--------------+--------------+\n");
-    printf("| worker | active       | capacity     | created      | deleted      | timed out    |\n");
-    printf("+--------+--------------+--------------+--------------+--------------+--------------+\n");
-    for (uint16_t i = 0; i < worker_count; i++) {
-        uint64_t worker_active = workers[i].flow_table.active;
-        uint64_t worker_created = workers[i].flow_table.created;
-        uint64_t worker_deleted = workers[i].flow_table.deleted;
-        uint64_t worker_timed_out = workers[i].flow_table.timed_out;
-
-        active += worker_active;
-        created += worker_created;
-        deleted += worker_deleted;
-        timed_out += worker_timed_out;
-        printf("| %6u | %12" PRIu64 " | %12u | %12" PRIu64 " | %12" PRIu64
-               " | %12" PRIu64 " |\n",
-               workers[i].worker_id, worker_active,
-               workers[i].flow_table.capacity, worker_created,
-               worker_deleted, worker_timed_out);
-    }
-    printf("+--------+--------------+--------------+--------------+--------------+--------------+\n");
-    printf("| %-6s | %12" PRIu64 " | %-12s | %12" PRIu64 " | %12" PRIu64
-           " | %12" PRIu64 " |\n",
-           "total", active, "-", created, deleted, timed_out);
-    printf("+--------+--------------+--------------+--------------+--------------+--------------+\n");
-    printf("total active=%" PRIu64 " created=%" PRIu64
-           " deleted=%" PRIu64 " timed_out=%" PRIu64 "\n",
-           active, created, deleted, timed_out);
-}
-
-static void print_worker_view(const ft_worker_t *workers,
-                              uint16_t worker_count,
-                              uint16_t active_worker_count) {
-    print_title("show worker");
-    printf("active_workers=%u launched_workers=%u\n\n",
-           active_worker_count, worker_count);
-    printf("+--------+----------+-------+--------+--------+--------------+--------------+--------------+--------------+\n");
-    printf("| worker | state    | lcore | socket | queue  | packets      | bytes        | dropped      | active flow  |\n");
-    printf("+--------+----------+-------+--------+--------+--------------+--------------+--------------+--------------+\n");
-    for (uint16_t i = 0; i < worker_count; i++) {
-        uint64_t packets = workers[i].local.packets;
-        uint64_t bytes = workers[i].local.bytes;
-        uint64_t forwarded = workers[i].local.forwarded;
-        uint64_t dropped = workers[i].local.dropped;
-        uint64_t active = workers[i].flow_table.active;
-        unsigned int queued = worker_queue_count(&workers[i]);
-
-        printf("| %6u | %-8s | %5u | %6d | %6u | %12" PRIu64
-               " | %12" PRIu64 " | %s%12" PRIu64 FT_ANSI_RESET
-               " | %12" PRIu64 " |\n",
-               workers[i].worker_id,
-               i < active_worker_count ? "active" : "standby",
-               workers[i].lcore_id, workers[i].socket_id, queued,
-               packets, bytes, drop_color(dropped), dropped, active);
-        (void)forwarded;
-    }
-    printf("+--------+----------+-------+--------+--------+--------------+--------------+--------------+--------------+\n");
-}
-
-static void print_rule_hits(const ft_stats_snapshot_t *snapshot,
-                            const ft_rule_set_t *rules,
-                            unsigned int limit) {
-    print_rule_table(snapshot, rules, limit);
-}
-
-static void print_traffic_view(const ft_worker_t *workers,
-                               uint16_t worker_count,
-                               const ft_rule_set_t *rules) {
-    ft_stats_snapshot_t snapshot;
-
-    collect_stats(workers, worker_count, &snapshot);
-    print_title("show traffic");
-    printf("+------------+--------------+\n");
-    printf("| direction  | packets      |\n");
-    printf("+------------+--------------+\n");
-    for (unsigned int direction = 0; direction < RTE_DIM(snapshot.direction);
-         direction++)
-        printf("| %-10s | %12" PRIu64 " |\n",
-               direction_name(direction), snapshot.direction[direction]);
-    printf("+------------+--------------+\n\n");
-    printf("+------------+--------------+\n");
-    printf("| class      | packets      |\n");
-    printf("+------------+--------------+\n");
-    for (uint16_t traffic_id = 0; traffic_id < FT_TRAFFIC_CLASS_COUNT;
-         traffic_id++)
-        printf("| %-10s | %12" PRIu64 " |\n",
-               traffic_name((ft_traffic_class_t)traffic_id),
-               snapshot.traffic[traffic_id]);
-    printf("+------------+--------------+\n\n");
-    print_rule_hits(&snapshot, rules, 0);
-}
-
-static void print_dashboard_view(const ft_worker_t *workers,
-                                 uint16_t worker_count,
-                                 uint16_t active_worker_count,
-                                 uint64_t dispatched,
-                                 const ft_rule_set_t *rules,
-                                 ft_dashboard_state_t *state,
-                                 bool clear_screen) {
-    ft_stats_snapshot_t snapshot;
-    uint64_t now = rte_get_tsc_cycles();
-    double seconds = 0.0;
-    double pps = 0.0;
-    double mbps = 0.0;
-    uint64_t drop_delta = 0;
-
-    collect_stats(workers, worker_count, &snapshot);
-    if (state->last_cycles != 0 && now > state->last_cycles) {
-        seconds = (double)(now - state->last_cycles) /
-                  (double)rte_get_tsc_hz();
-        pps = seconds > 0.0 ?
-            (double)(snapshot.packets - state->last_packets) / seconds : 0.0;
-        mbps = seconds > 0.0 ?
-            ((double)(snapshot.bytes - state->last_bytes) * 8.0) /
-            seconds / 1000000.0 : 0.0;
-        drop_delta = snapshot.dropped - state->last_dropped;
-    }
-    state->last_cycles = now;
-    state->last_packets = snapshot.packets;
-    state->last_bytes = snapshot.bytes;
-    state->last_dropped = snapshot.dropped;
-
-    if (clear_screen)
-        printf(FT_ANSI_CLEAR);
-    printf(FT_ANSI_BOLD FT_ANSI_CYAN "FlowTable realtime dashboard"
-           FT_ANSI_RESET "\n");
-    printf("+----------------+----------------+----------------+----------------+\n");
-    printf("| active workers | dispatched     | processed      | active flows   |\n");
-    printf("+----------------+----------------+----------------+----------------+\n");
-    printf("| %7u/%-6u | %14" PRIu64 " | %14" PRIu64 " | %14" PRIu64
-           " |\n",
-           active_worker_count, worker_count, dispatched, snapshot.packets,
-           snapshot.active_flows);
-    printf("+----------------+----------------+----------------+----------------+\n\n");
-    printf("+--------------+--------------+--------------+--------------+--------------+\n");
-    printf("| pps          | mbps         | int drops    | total drops  | forwarded    |\n");
-    printf("+--------------+--------------+--------------+--------------+--------------+\n");
-    printf("| %12.0f | %12.2f | %s%12" PRIu64 FT_ANSI_RESET
-           " | %s%12" PRIu64 FT_ANSI_RESET " | %12" PRIu64 " |\n",
-           pps, mbps, drop_color(drop_delta), drop_delta,
-           drop_color(snapshot.dropped), snapshot.dropped,
-           snapshot.forwarded);
-    printf("+--------------+--------------+--------------+--------------+--------------+\n\n");
-    printf(FT_ANSI_BOLD "workers" FT_ANSI_RESET "\n");
-    printf("+----+----------+-------+-------+--------+--------------+--------------+--------------+\n");
-    printf("| id | state    | lcore | queue | packet | active flow  | dropped      | bytes        |\n");
-    printf("+----+----------+-------+-------+--------+--------------+--------------+--------------+\n");
-    for (uint16_t i = 0; i < worker_count; i++) {
-        uint64_t packets = workers[i].local.packets;
-        uint64_t active = workers[i].flow_table.active;
-        uint64_t dropped = workers[i].local.dropped;
-        uint64_t bytes = workers[i].local.bytes;
-        unsigned int queued = worker_queue_count(&workers[i]);
-
-        printf("| %2u | %-8s | %5u | %5u | %6" PRIu64 " | %12" PRIu64
-               " | %s%12" PRIu64 FT_ANSI_RESET " | %12" PRIu64 " |\n",
-               workers[i].worker_id,
-               i < active_worker_count ? "active" : "standby",
-               workers[i].lcore_id, queued, packets, active,
-               drop_color(dropped), dropped, bytes);
-    }
-    printf("+----+----------+-------+-------+--------+--------------+--------------+--------------+\n\n");
-    printf(FT_ANSI_BOLD "traffic" FT_ANSI_RESET "\n");
-    printf("+------------+--------------+\n");
-    printf("| class      | packets      |\n");
-    printf("+------------+--------------+\n");
-    for (uint16_t traffic_id = 0; traffic_id < FT_TRAFFIC_CLASS_COUNT;
-         traffic_id++)
-        printf("| %-10s | %12" PRIu64 " |\n",
-               traffic_name((ft_traffic_class_t)traffic_id),
-               snapshot.traffic[traffic_id]);
-    printf("+------------+--------------+\n");
-    printf("direction UNKNOWN=%" PRIu64 " UPLINK=%" PRIu64
-           " DOWNLINK=%" PRIu64 " rules=%u\n",
-           snapshot.direction[FT_DIR_UNKNOWN], snapshot.direction[FT_DIR_UPLINK],
-           snapshot.direction[FT_DIR_DOWNLINK],
-           rules == NULL ? 0 : rules->count);
-    printf("\n" FT_ANSI_BOLD "top rule hits" FT_ANSI_RESET "\n");
-    print_rule_table(&snapshot, rules, 8);
-    printf("\n" FT_ANSI_DIM
-           "commands: show statistics | show flow | show worker | show traffic"
-           " | show dashboard | rules | reload | scale up | scale down | quit"
-           FT_ANSI_RESET "\n");
-    fflush(stdout);
-}
-
-static void print_live_stats(const ft_worker_t *workers,
-                             uint16_t worker_count,
-                             uint16_t active_worker_count,
-                             uint64_t dispatched,
-                             const ft_rule_set_t *rules) {
-    ft_stats_snapshot_t snapshot;
-
-    collect_stats(workers, worker_count, &snapshot);
-    printf("live active_workers=%u launched_workers=%u dispatched=%" PRIu64
-           " processed=%" PRIu64 " bytes=%" PRIu64
-           " forwarded=%" PRIu64 " dropped=%" PRIu64
-           " active_flows=%" PRIu64 " created=%" PRIu64
-           " deleted=%" PRIu64 " timed_out=%" PRIu64
-           " rule_hits=%" PRIu64 " rules=%u\n",
-           active_worker_count, worker_count, dispatched, snapshot.packets,
-           snapshot.bytes, snapshot.forwarded, snapshot.dropped,
-           snapshot.active_flows, snapshot.created_flows,
-           snapshot.deleted_flows, snapshot.timed_out_flows,
-           snapshot.total_rule_hits, rules == NULL ? 0 : rules->count);
-}
-
 static void request_scale(_Atomic int *scale_delta, int delta) {
     atomic_fetch_add_explicit(scale_delta, delta, memory_order_release);
 }
 
-static void request_show(_Atomic int *show_request,
-                         _Atomic bool *stop,
-                         ft_show_request_t request) {
-    atomic_store_explicit(show_request, (int)request, memory_order_release);
+static void request_show_value(_Atomic int *show_request,
+                               _Atomic bool *stop,
+                               int request) {
+    atomic_store_explicit(show_request, request, memory_order_release);
     while (!force_quit &&
            !atomic_load_explicit(stop, memory_order_acquire) &&
            atomic_load_explicit(show_request, memory_order_acquire) !=
                FT_SHOW_NONE)
         rte_pause();
+}
+
+static void request_show(_Atomic int *show_request,
+                         _Atomic bool *stop,
+                         ft_show_request_t request) {
+    request_show_value(show_request, stop, (int)request);
 }
 
 static void *cli_loop(void *argument) {
@@ -667,28 +300,29 @@ static void *cli_loop(void *argument) {
     printf(FT_ANSI_CLEAR);
     printf(FT_ANSI_BOLD FT_ANSI_CYAN "FlowTable CLI" FT_ANSI_RESET "\n");
     printf("commands: help | show statistics | show flow | show worker |"
-           " show traffic | show dashboard | rules | reload | scale up |"
-           " scale down | quit\n\n");
+           " show worker N | show traffic | show dashboard | rules | reload |"
+           " scale up | scale down | quit\n\n");
     printf("flowtable> ");
     fflush(stdout);
     while (!atomic_load_explicit(context->stop, memory_order_acquire) &&
            fgets(line, sizeof(line), stdin) != NULL) {
         line[strcspn(line, "\r\n")] = '\0';
         if (strcmp(line, "help") == 0) {
-            print_title("help");
-            printf("+-----------------+-----------------------------------------+\n");
-            printf("| command         | description                             |\n");
-            printf("+-----------------+-----------------------------------------+\n");
-            printf("| show statistics | total packet, byte, flow and rule stats  |\n");
-            printf("| show flow       | per-worker flow lifecycle counters       |\n");
-            printf("| show worker     | per-worker queue and packet counters     |\n");
-            printf("| show traffic    | direction, class and rule-hit tables      |\n");
-            printf("| show dashboard  | one-shot dashboard view                   |\n");
-            printf("| rules           | rule version and loaded rule count        |\n");
-            printf("| reload          | reload SPI rules for new flows            |\n");
-            printf("| scale up/down   | adjust active workers in dynamic mode     |\n");
-            printf("| quit            | stop the pipeline                         |\n");
-            printf("+-----------------+-----------------------------------------+\n");
+            ft_stats_print_title("help");
+            printf("+-----------------+-------------------------------------------+\n");
+            printf("| command         | description                               |\n");
+            printf("+-----------------+-------------------------------------------+\n");
+            printf("| show statistics | total packet, byte, flow and rule stats    |\n");
+            printf("| show flow       | per-worker flow lifecycle counters         |\n");
+            printf("| show worker     | per-worker queue and packet counters       |\n");
+            printf("| show worker N   | one worker core traffic/class counters     |\n");
+            printf("| show traffic    | direction, class and rule-hit tables        |\n");
+            printf("| show dashboard  | one-shot dashboard view                     |\n");
+            printf("| rules           | rule version and loaded rule count          |\n");
+            printf("| reload          | reload SPI rules for new flows              |\n");
+            printf("| scale up/down   | adjust active workers in dynamic mode       |\n");
+            printf("| quit            | stop the pipeline                           |\n");
+            printf("+-----------------+-------------------------------------------+\n");
         } else if (strcmp(line, "show") == 0 ||
                    strcmp(line, "show statistics") == 0) {
             request_show(context->show_request, context->stop,
@@ -697,6 +331,17 @@ static void *cli_loop(void *argument) {
             request_show(context->show_request, context->stop, FT_SHOW_FLOW);
         } else if (strcmp(line, "show worker") == 0) {
             request_show(context->show_request, context->stop, FT_SHOW_WORKER);
+        } else if (strncmp(line, "show worker ", 12) == 0) {
+            char *end = NULL;
+            unsigned long worker_id = strtoul(line + 12, &end, 10);
+
+            if (end == line + 12 || *end != '\0' || worker_id >= FT_MAX_WORKERS) {
+                printf("invalid worker id: %s\n", line + 12);
+            } else {
+                request_show_value(context->show_request, context->stop,
+                                   FT_SHOW_WORKER_DETAIL_BASE +
+                                   (int)worker_id);
+            }
         } else if (strcmp(line, "show traffic") == 0) {
             request_show(context->show_request, context->stop, FT_SHOW_TRAFFIC);
         } else if (strcmp(line, "show dashboard") == 0) {
@@ -787,26 +432,33 @@ static void apply_control_events(const ft_app_config_t *config,
                                               memory_order_acq_rel);
     if (requested_show != FT_SHOW_NONE) {
         active = atomic_load_explicit(active_worker_count, memory_order_acquire);
+        if (requested_show >= FT_SHOW_WORKER_DETAIL_BASE) {
+            ft_stats_print_worker_detail(workers, worker_count, active,
+                                         (uint16_t)(requested_show -
+                                                    FT_SHOW_WORKER_DETAIL_BASE));
+            return;
+        }
         switch ((ft_show_request_t)requested_show) {
         case FT_SHOW_FLOW:
-            print_flow_view(workers, worker_count, active, dispatched);
+            ft_stats_print_flow(workers, worker_count, active, dispatched);
             break;
         case FT_SHOW_WORKER:
-            print_worker_view(workers, worker_count, active);
+            ft_stats_print_worker(workers, worker_count, active);
             break;
         case FT_SHOW_TRAFFIC:
-            print_traffic_view(workers, worker_count,
-                               rule_store_current(rule_store));
+            ft_stats_print_traffic(workers, worker_count,
+                                   rule_store_current(rule_store));
             break;
         case FT_SHOW_DASHBOARD:
-            print_dashboard_view(workers, worker_count, active, dispatched,
-                                 rule_store_current(rule_store),
-                                 dashboard_state, false);
+            ft_stats_print_dashboard(workers, worker_count, active, dispatched,
+                                     rule_store_current(rule_store),
+                                     dashboard_state, false);
             break;
         case FT_SHOW_STATISTICS:
         default:
-            print_statistics_view(workers, worker_count, active, dispatched,
-                                  rule_store_current(rule_store));
+            ft_stats_print_statistics(workers, worker_count, active,
+                                      dispatched,
+                                      rule_store_current(rule_store));
             break;
         }
     }
@@ -1214,64 +866,6 @@ static void destroy_worker(ft_worker_t *worker) {
         rte_mempool_free(worker->work_pool);
 }
 
-static void print_summary(const ft_worker_t *workers,
-              uint16_t worker_count,
-              uint16_t active_worker_count,
-              uint64_t dispatched,
-              uint64_t elapsed_cycles,
-              const ft_rule_set_t *rules) {
-    uint64_t packets = 0;
-    uint64_t forwarded = 0;
-    uint64_t dropped = 0;
-    uint64_t active = 0;
-    uint64_t created = 0;
-    uint64_t traffic[FT_TRAFFIC_CLASS_COUNT] = {0};
-    uint64_t rule_hits[FT_MAX_RULES] = {0};
-    double seconds = (double)elapsed_cycles / (double)rte_get_tsc_hz();
-
-    for (uint16_t i = 0; i < worker_count; i++) {
-        packets += workers[i].local.packets;
-        forwarded += workers[i].local.forwarded;
-        dropped += workers[i].local.dropped;
-        active += workers[i].flow_table.active;
-        created += workers[i].flow_table.created;
-        for (uint16_t traffic_id = 0; traffic_id < FT_TRAFFIC_CLASS_COUNT;
-             traffic_id++)
-            traffic[traffic_id] += workers[i].local.traffic[traffic_id];
-        for (uint16_t rule_id = 0; rule_id < FT_MAX_RULES; rule_id++)
-            rule_hits[rule_id] += workers[i].local.rule_hits[rule_id];
-        printf("worker=%u lcore=%u socket=%d packets=%" PRIu64
-               " active_flows=%u created=%" PRIu64 "\n",
-               workers[i].worker_id, workers[i].lcore_id, workers[i].socket_id,
-               workers[i].local.packets, workers[i].flow_table.active,
-               workers[i].flow_table.created);
-    }
-    printf("summary active_workers=%u launched_workers=%u"
-           " dispatched=%" PRIu64 " processed=%" PRIu64
-           " forwarded=%" PRIu64 " dropped=%" PRIu64
-           " active_flows=%" PRIu64 " created_flows=%" PRIu64
-           " seconds=%.6f pps=%.0f\n",
-           active_worker_count, worker_count, dispatched, packets, forwarded,
-           dropped, active, created, seconds,
-           seconds > 0.0 ? (double)packets / seconds : 0.0);
-    for (uint16_t traffic_id = 0; traffic_id < FT_TRAFFIC_CLASS_COUNT;
-         traffic_id++) {
-        if (traffic[traffic_id] != 0)
-            printf("traffic %s=%" PRIu64 "\n",
-                   traffic_name((ft_traffic_class_t)traffic_id),
-                   traffic[traffic_id]);
-    }
-    if (rules != NULL) {
-        for (uint16_t rule_id = 0; rule_id < rules->count; rule_id++) {
-            if (rule_hits[rule_id] != 0)
-                printf("rule_hit id=%u name=%s action=%s hits=%" PRIu64 "\n",
-                       rule_id, rules->rules[rule_id].name,
-                       ft_action_name(rules->rules[rule_id].action),
-                       rule_hits[rule_id]);
-        }
-    }
-}
-
 int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
     ft_direction_config_t directions;
     ft_rule_store_t rule_store;
@@ -1392,13 +986,14 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
                                                    memory_order_acquire);
 
             if (config->dashboard_enabled)
-                print_dashboard_view(workers, launched_workers, active,
-                                     dispatched,
-                                     rule_store_current(&rule_store),
-                                     &dashboard_state, true);
+                ft_stats_print_dashboard(workers, launched_workers, active,
+                                         dispatched,
+                                         rule_store_current(&rule_store),
+                                         &dashboard_state, true);
             else
-                print_live_stats(workers, launched_workers, active, dispatched,
-                                 rule_store_current(&rule_store));
+                ft_stats_print_live(workers, launched_workers, active,
+                                    dispatched,
+                                    rule_store_current(&rule_store));
             next_stats = rte_get_tsc_cycles() +
                          config->stats_interval_seconds * rte_get_tsc_hz();
         }
@@ -1417,10 +1012,11 @@ wait:
             rte_eal_wait_lcore(workers[i].lcore_id);
     }
     end = rte_get_tsc_cycles();
-    print_summary(workers, launched_workers,
-                  atomic_load_explicit(&active_worker_count,
-                                       memory_order_acquire),
-                  dispatched, end - start, rule_store_current(&rule_store));
+    ft_stats_print_summary(workers, launched_workers,
+                           atomic_load_explicit(&active_worker_count,
+                                                memory_order_acquire),
+                           dispatched, end - start,
+                           rule_store_current(&rule_store));
     result = launch_ok ? 0 : -1;
 
 cleanup:
@@ -1708,14 +1304,14 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
                 current = atomic_load_explicit(&dispatched_atomic,
                                                memory_order_acquire);
                 if (config->dashboard_enabled)
-                    print_dashboard_view(workers, launched_workers, active,
-                                         current,
-                                         rule_store_current(&rule_store),
-                                         &dashboard_state, true);
+                    ft_stats_print_dashboard(workers, launched_workers, active,
+                                             current,
+                                             rule_store_current(&rule_store),
+                                             &dashboard_state, true);
                 else
-                    print_live_stats(workers, launched_workers, active,
-                                     current,
-                                     rule_store_current(&rule_store));
+                    ft_stats_print_live(workers, launched_workers, active,
+                                        current,
+                                        rule_store_current(&rule_store));
                 next_stats = rte_get_tsc_cycles() +
                              config->stats_interval_seconds * rte_get_tsc_hz();
             }
@@ -1795,14 +1391,14 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
                                                        memory_order_acquire);
 
                 if (config->dashboard_enabled)
-                    print_dashboard_view(workers, launched_workers, active,
-                                         dispatched,
-                                         rule_store_current(&rule_store),
-                                         &dashboard_state, true);
+                    ft_stats_print_dashboard(workers, launched_workers, active,
+                                             dispatched,
+                                             rule_store_current(&rule_store),
+                                             &dashboard_state, true);
                 else
-                    print_live_stats(workers, launched_workers, active,
-                                     dispatched,
-                                     rule_store_current(&rule_store));
+                    ft_stats_print_live(workers, launched_workers, active,
+                                        dispatched,
+                                        rule_store_current(&rule_store));
                 next_stats = rte_get_tsc_cycles() +
                              config->stats_interval_seconds * rte_get_tsc_hz();
             }
@@ -1829,10 +1425,11 @@ stop_workers:
             rte_eal_wait_lcore(workers[i].lcore_id);
     }
     end = rte_get_tsc_cycles();
-    print_summary(workers, launched_workers,
-                  atomic_load_explicit(&active_worker_count,
-                                       memory_order_acquire),
-                  dispatched, end - start, rule_store_current(&rule_store));
+    ft_stats_print_summary(workers, launched_workers,
+                           atomic_load_explicit(&active_worker_count,
+                                                memory_order_acquire),
+                           dispatched, end - start,
+                           rule_store_current(&rule_store));
     result = launch_ok ? 0 : -1;
 
 cleanup:

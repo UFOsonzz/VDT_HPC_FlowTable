@@ -27,6 +27,8 @@ Thiết kế dùng pipeline và ownership theo core:
 - [Software detailed design](docs/04_SOFTWARE_DESIGN.md)
 - [Kiến trúc, code guide và hướng cải tiến](docs/05_ARCHITECTURE_CODE_GUIDE.md)
 - [Kết quả kiểm thử và benchmark](reports/BENCHMARK.md)
+- [Đối chiếu yêu cầu docx](reports/PROJECT_REQUIREMENT_REVIEW.md)
+- [Design/data-flow/sequence/activity diagrams](reports/DESIGN_DIAGRAMS.md)
 - [Test cases Excel](tests/FlowTable_Test_Cases.xlsx) gồm đúng hai sheet:
   `Functional Test` và `Performance Test`
 
@@ -126,8 +128,11 @@ owner không bị đổi worker khi active worker count thay đổi.
 - `--dashboard`: đổi output interval thành dashboard realtime ANSI; nếu chưa
   truyền `--stats-interval` thì interval mặc định là 1 giây
 - `--cli`: bật CLI terminal trong ethdev mode với `show statistics`,
-  `show flow`, `show worker`, `show traffic`, `show dashboard`, `rules`,
-  `reload`, `scale up`, `scale down`, `quit`
+  `show flow`, `show worker`, `show worker N`, `show traffic`,
+  `show dashboard`, `rules`, `reload`, `scale up`, `scale down`, `quit`.
+  `show worker N` hiển thị riêng một worker core, gồm queue/lcore/socket,
+  packet/byte/drop, flow lifecycle, sáu traffic classes
+  `HTTP/HTTPS/DNS/TCP/UDP/OTHER` và direction counters.
 
 Ví dụ bật CLI realtime với PCAP PMD:
 
@@ -188,7 +193,12 @@ bảo đảm.
 
 ```text
 include/       Public data structures và API
-src/           Parser, canonical key, rule engine, flow table, pipeline
+src/config.c   CLI/runtime config parser
+src/packet.c   Ethernet/VLAN/IPv4/TCP/UDP parser và flow normalization
+src/flow.c     Per-worker flow table, lifecycle counters và aging
+src/rule.c     SPI rule loader, precedence, action và traffic classifier
+src/pipeline.c RX/dispatcher/worker orchestration và runtime control
+src/stats.c    Live CLI/dashboard/reporting counters
 bench/         Benchmark scale theo core
 tests/         Unit test, test data và workbook test cases
 config/        SPI rules và direction strategies

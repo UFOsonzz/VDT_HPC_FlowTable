@@ -39,7 +39,7 @@ if [[ ! -f "$pcap_file" ]]; then
 fi
 
 printf 'Opening FlowTable CLI for %s\n' "$pcap_file"
-printf 'Commands: show dashboard, show statistics, show worker, show traffic, quit\n'
+printf 'Commands: show dashboard, show statistics, show worker, show worker N, show traffic, quit\n'
 
 env XDG_RUNTIME_DIR=/tmp "$binary" \
     -l "0-${lcore_end}" --huge-dir "$mount_point" --in-memory --no-pci \

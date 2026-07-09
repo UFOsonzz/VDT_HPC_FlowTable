@@ -12,7 +12,7 @@ LDLIBS += $(DPDK_LIBS)
 
 BUILD_DIR := build
 CORE_SOURCES := src/config.c src/flow.c src/packet.c src/rule.c
-PIPELINE_SOURCES := src/pipeline.c
+PIPELINE_SOURCES := src/pipeline.c src/stats.c
 
 .PHONY: all clean test benchmark benchmark-e2e workbook
 

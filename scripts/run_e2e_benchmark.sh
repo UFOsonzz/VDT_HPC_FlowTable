@@ -20,6 +20,7 @@ warmup_runs="${E2E_WARMUP_RUNS:-2}"
 measure_runs="${E2E_RUNS:-5}"
 cooldown_seconds="${E2E_COOLDOWN_SECONDS:-0}"
 output="${E2E_BENCH_OUTPUT:-reports/e2e_benchmark_results.csv}"
+logical_cpus="$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || echo 0)"
 
 mkdir -p reports
 
@@ -100,7 +101,7 @@ if [[ "$pcap_regenerate" == "1" || ! -f "$pcap_file" ]]; then
         --packets "$pcap_packets"
 fi
 
-printf 'profile,mode,workers,max_workers,rx_queues,dispatchers,warmup_runs,measure_runs,median_run,total_packets,flows,processed,dropped,active_flows,seconds,pps\n' > "$output"
+printf 'profile,mode,workers,max_workers,rx_queues,dispatchers,warmup_runs,measure_runs,median_run,total_packets,flows,processed,dropped,active_flows,seconds,pps,created_flows,deleted_flows,timed_out_flows,flow_create_rate,cpu_lcores,cpu_core_usage_percent\n' > "$output"
 
 extract_field() {
     local line="$1"
@@ -139,19 +140,31 @@ append_result() {
     local max_workers="$4"
     local rx_queues="$5"
     local dispatchers="$6"
-    local packets="$7"
-    local flows="$8"
-    shift 8
+    local cpu_lcores="$7"
+    local packets="$8"
+    local flows="$9"
+    shift 9
     local summary
     local processed
     local dropped
     local active_flows
     local seconds
     local pps
+    local created_flows
+    local deleted_flows
+    local timed_out_flows
+    local flow_create_rate
+    local cpu_core_usage_percent
     local median
     local median_run
     local median_rank=$(((measure_runs + 1) / 2))
     local rows=()
+
+    cpu_core_usage_percent="0.00"
+    if ((logical_cpus > 0)); then
+        cpu_core_usage_percent="$(awk -v used="$cpu_lcores" \
+            -v total="$logical_cpus" 'BEGIN {printf "%.2f", used * 100 / total}')"
+    fi
 
     for ((run = 1; run <= warmup_runs; run++)); do
         run_profile_once "$profile" warmup "$run" "$warmup_runs" "$@" >/dev/null
@@ -164,25 +177,36 @@ append_result() {
         active_flows="$(extract_field "$summary" active_flows)"
         seconds="$(extract_field "$summary" seconds)"
         pps="$(extract_field "$summary" pps)"
+        created_flows="$(extract_field "$summary" created_flows)"
+        deleted_flows="$(extract_field "$summary" deleted_flows)"
+        timed_out_flows="$(extract_field "$summary" timed_out_flows)"
+        flow_create_rate="$(extract_field "$summary" flow_create_rate)"
         if [[ -z "$processed" || -z "$dropped" || -z "$active_flows" ||
-              -z "$seconds" || -z "$pps" ]]; then
+              -z "$seconds" || -z "$pps" || -z "$created_flows" ||
+              -z "$deleted_flows" || -z "$timed_out_flows" ||
+              -z "$flow_create_rate" ]]; then
             echo "Cannot parse summary for profile=$profile run=$run: $summary" >&2
             exit 1
         fi
-        rows+=("$pps,$run,$processed,$dropped,$active_flows,$seconds")
-        printf '[%s] run=%s pps=%s seconds=%s processed=%s dropped=%s\n' \
-            "$profile" "$run" "$pps" "$seconds" "$processed" "$dropped" >&2
+        rows+=("$pps,$run,$processed,$dropped,$active_flows,$seconds,$created_flows,$deleted_flows,$timed_out_flows,$flow_create_rate")
+        printf '[%s] run=%s pps=%s seconds=%s processed=%s dropped=%s created_flows=%s\n' \
+            "$profile" "$run" "$pps" "$seconds" "$processed" "$dropped" \
+            "$created_flows" >&2
         maybe_cooldown
     done
     median="$(printf '%s\n' "${rows[@]}" |
         sort -t, -k1,1n |
         awk -F, -v rank="$median_rank" 'NR == rank {print}')"
-    IFS=, read -r pps median_run processed dropped active_flows seconds <<< "$median"
-    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
+    IFS=, read -r pps median_run processed dropped active_flows seconds \
+        created_flows deleted_flows timed_out_flows flow_create_rate <<< "$median"
+    printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
         "$profile" "$mode" "$workers" "$max_workers" \
         "$rx_queues" "$dispatchers" "$warmup_runs" "$measure_runs" \
         "$median_run" "$packets" "$flows" \
-        "$processed" "$dropped" "$active_flows" "$seconds" "$pps" >> "$output"
+        "$processed" "$dropped" "$active_flows" "$seconds" "$pps" \
+        "$created_flows" "$deleted_flows" "$timed_out_flows" \
+        "$flow_create_rate" "$cpu_lcores" \
+        "$cpu_core_usage_percent" >> "$output"
     printf '[%s] median_run=%s median_pps=%s\n' \
         "$profile" "$median_run" "$pps" >&2
 }
@@ -226,7 +250,8 @@ if ((pcap_infinite_rx == 1)); then
     pcap_vdev="${pcap_vdev},infinite_rx=1"
 fi
 
-append_result pcap-spi-4w-huge ethdev 4 4 1 1 "$pcap_packets" "$pcap_flows" \
+append_result pcap-spi-4w-huge ethdev 4 4 1 1 5 \
+    "$pcap_packets" "$pcap_flows" \
     env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
         -l 0-4 --huge-dir "$mount_point" --in-memory --no-pci \
         --vdev "$pcap_vdev" --no-telemetry -- \
@@ -239,7 +264,7 @@ mq_vdev="$(generate_mq_pcaps)"
 mq_lcore_end=$((mq_workers + mq_dispatchers))
 append_result "pcap-spi-mq-${mq_dispatchers}d${mq_workers}w-huge" \
     ethdev "$mq_workers" "$mq_workers" "$mq_dispatchers" "$mq_dispatchers" \
-    "$mq_packets" "$mq_flows" \
+    "$((mq_lcore_end + 1))" "$mq_packets" "$mq_flows" \
     env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
         -l "0-${mq_lcore_end}" --huge-dir "$mount_point" --in-memory --no-pci \
         --vdev "$mq_vdev" --no-telemetry -- \

@@ -80,9 +80,9 @@ không mất gói. Worker-engine benchmark bên dưới tách khỏi dispatcher/
 ## End-to-end benchmark hiện tại
 
 Nguồn chính xác: `reports/e2e_benchmark_results.csv`. CSV lưu cả
-`warmup_runs`, `measure_runs` và `median_run`. PPS trong bảng là tổng thông
-lượng packet đã xử lý của toàn pipeline ở median run, không phải trung bình
-mỗi worker.
+`warmup_runs`, `measure_runs`, `median_run`, flow lifecycle counters,
+flow-create-rate và lcore allocation. PPS trong bảng là tổng thông lượng packet
+đã xử lý của toàn pipeline ở median run, không phải trung bình mỗi worker.
 
 Workload PCAP giữ tỉ lệ benchmark phổ biến: 100.000 flow và khoảng hai packet
 cho mỗi flow. Vì từng run vẫn khá ngắn, số đo dễ bị ảnh hưởng bởi CPU
@@ -102,6 +102,20 @@ mbuf thật.
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
 | pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 5.46 Mpps |
 | pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 7.24 Mpps |
+
+Các trường bắt buộc theo mục "3. Bài test & kết quả" trong docx:
+
+| Profile | Throughput | Max active flows | Flow create rate | Flow delete/timeout rate | CPU core usage |
+|---|---:|---:|---:|---:|---|
+| pcap-spi-4w-huge | 5.46 Mpps | 100,000 | 2.73 Mflows/s | 0/s | 5 lcores allocated, 62.50% of 8 logical CPUs |
+| pcap-spi-mq-2d4w-huge | 7.24 Mpps | 100,000 | 3.62 Mflows/s | 0/s | 7 lcores allocated, 87.50% of 8 logical CPUs |
+
+CPU ở bảng trên là mức core/lcore được cấp phát cho EAL command, không phải
+OS-sampled utilization từ `pidstat`/`perf`. DPDK poll-mode thường giữ lcore
+active trong measured window; nếu cần CPU utilization kiểu hệ điều hành, lần
+benchmark trên server nên thu thêm `pidstat -t` hoặc `perf stat` song song.
+Flow delete/timeout bằng 0 vì workload 200k packet kết thúc trước timeout và
+không có aging pressure test trong run hiện tại.
 
 E2E benchmark hiện chỉ giữ PCAP profiles vì synthetic không còn phản ánh
 workload cần so sánh: 100.000 flow, khoảng hai packet cho mỗi flow và
@@ -160,6 +174,7 @@ plane phải local/cache aligned.
 - p50/p99 latency
 - aging degradation sau timeout 5 giây
 - dual-socket NUMA local/remote
-- flow create/delete rate với 100% new-flow traffic
+- OS-sampled CPU utilization trong lúc benchmark
+- flow delete/timeout rate dưới workload aging thật
 
 Các trường hợp này đã có trong sheet `Performance Test` của workbook.
