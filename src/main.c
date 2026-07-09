@@ -23,10 +23,12 @@ static void usage(const char *program) {
            "  --directions PATH  Direction strategy CSV\n"
            "  --port N           Ethdev/PCAP PMD port (default: 0)\n"
            "  --rx-queues N      Ethdev RX queues to poll (default: 1)\n"
+           "  --rx-mbufs N       RX mbufs for ethdev/PCAP PMD, 0 auto\n"
            "  --dispatchers N    RX dispatcher lcores for ethdev (default: 1)\n"
            "  --tx               Transmit FORWARD packets on per-worker TX queues\n"
            "  --cli              Enable terminal CLI for ethdev mode\n"
            "  --dashboard        Print ANSI realtime dashboard; default interval 1s\n"
+           "  --per-dispatcher-limit  Split --packets evenly across dispatchers\n"
            "  --fixed-workers    Disable runtime scaling; hash flows directly to workers\n",
            program);
 }
@@ -65,10 +67,12 @@ int main(int argc, char **argv) {
         {"directions", required_argument, NULL, 'D'},
         {"port", required_argument, NULL, 'P'},
         {"rx-queues", required_argument, NULL, 'q'},
+        {"rx-mbufs", required_argument, NULL, 'M'},
         {"dispatchers", required_argument, NULL, 'd'},
         {"tx", no_argument, NULL, 'T'},
         {"cli", no_argument, NULL, 'C'},
         {"dashboard", no_argument, NULL, 'B'},
+        {"per-dispatcher-limit", no_argument, NULL, 'L'},
         {"fixed-workers", no_argument, NULL, 'F'},
         {"help", no_argument, NULL, 'h'},
         {NULL, 0, NULL, 0},
@@ -83,7 +87,7 @@ int main(int argc, char **argv) {
     argc -= consumed;
     argv += consumed;
     optind = 1;
-    while ((option = getopt_long(argc, argv, "m:w:W:p:f:c:r:t:s:S:R:D:P:q:d:TCBFh",
+    while ((option = getopt_long(argc, argv, "m:w:W:p:f:c:r:t:s:S:R:D:P:q:M:d:TCBLFh",
                                  options, NULL)) != -1) {
         switch (option) {
         case 'm':
@@ -129,6 +133,9 @@ int main(int argc, char **argv) {
         case 'q':
             config.rx_queue_count = (uint16_t)strtoul(optarg, NULL, 10);
             break;
+        case 'M':
+            config.rx_mbuf_count = (uint32_t)strtoul(optarg, NULL, 10);
+            break;
         case 'd':
             config.dispatcher_count = (uint16_t)strtoul(optarg, NULL, 10);
             break;
@@ -140,6 +147,9 @@ int main(int argc, char **argv) {
             break;
         case 'B':
             config.dashboard_enabled = true;
+            break;
+        case 'L':
+            config.per_dispatcher_limit = true;
             break;
         case 'F':
             config.fixed_workers = true;

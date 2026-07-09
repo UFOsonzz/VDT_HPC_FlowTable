@@ -76,11 +76,13 @@ typedef struct {
     const char *direction_path;
     uint16_t port_id;
     uint16_t rx_queue_count;
+    uint32_t rx_mbuf_count;
     uint16_t dispatcher_count;
     bool tx_enabled;
     bool cli_enabled;
     bool dashboard_enabled;
     bool fixed_workers;
+    bool per_dispatcher_limit;
 } ft_app_config_t;
 
 int ft_pipeline_run_synthetic(const ft_app_config_t *config);

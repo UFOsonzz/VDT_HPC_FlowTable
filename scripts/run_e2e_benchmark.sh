@@ -4,15 +4,18 @@ set -euo pipefail
 hugepage_mb="${HUGEPAGE_MB:-1024}"
 mount_point="${HUGEPAGE_MOUNT:-/mnt/huge}"
 pcap_file="${PCAP_FILE:-generated/spi_benchmark.pcap}"
-pcap_packets="${PCAP_PACKETS:-1000000}"
+pcap_packets="${PCAP_PACKETS:-200000}"
 pcap_flows="${PCAP_FLOWS:-100000}"
 pcap_regenerate="${PCAP_REGENERATE:-}"
+pcap_infinite_rx="${PCAP_INFINITE_RX:-1}"
+pcap_rx_mbufs="${PCAP_RX_MBUFS:-}"
 mq_dispatchers="${MQ_DISPATCHERS:-2}"
 mq_workers="${MQ_WORKERS:-4}"
 mq_packets="${MQ_PACKETS:-$pcap_packets}"
 mq_flows="${MQ_FLOWS:-$pcap_flows}"
 mq_pcap_prefix="${MQ_PCAP_PREFIX:-generated/spi_benchmark_mq}"
 mq_regenerate="${MQ_REGENERATE:-}"
+mq_rx_mbufs="${MQ_RX_MBUFS:-}"
 warmup_runs="${E2E_WARMUP_RUNS:-2}"
 measure_runs="${E2E_RUNS:-5}"
 cooldown_seconds="${E2E_COOLDOWN_SECONDS:-0}"
@@ -40,6 +43,7 @@ is_uint() {
 }
 
 if ! is_uint "$pcap_packets" || ! is_uint "$pcap_flows" ||
+    ! is_uint "$pcap_infinite_rx" ||
     ! is_uint "$mq_dispatchers" || ! is_uint "$mq_workers" ||
     ! is_uint "$mq_packets" || ! is_uint "$mq_flows" ||
     ! is_uint "$warmup_runs" || ! is_uint "$measure_runs" ||
@@ -53,6 +57,24 @@ if ((pcap_packets <= 0 || pcap_flows <= 0 ||
      mq_packets <= 0 || mq_flows <= 0 ||
      measure_runs <= 0)); then
     echo "Packet, flow, worker, dispatcher and measured run counts must be positive" >&2
+    exit 1
+fi
+if ((pcap_infinite_rx > 1)); then
+    echo "PCAP_INFINITE_RX must be 0 or 1" >&2
+    exit 1
+fi
+if [[ -z "$pcap_rx_mbufs" ]]; then
+    pcap_rx_mbufs=$((pcap_packets + 8192))
+fi
+if [[ -z "$mq_rx_mbufs" ]]; then
+    mq_rx_mbufs=$((mq_packets + 8192))
+fi
+if ! is_uint "$pcap_rx_mbufs" || ! is_uint "$mq_rx_mbufs"; then
+    echo "PCAP_RX_MBUFS and MQ_RX_MBUFS must be unsigned integers" >&2
+    exit 1
+fi
+if ((pcap_rx_mbufs <= 0 || mq_rx_mbufs <= 0)); then
+    echo "PCAP_RX_MBUFS and MQ_RX_MBUFS must be positive" >&2
     exit 1
 fi
 
@@ -193,6 +215,9 @@ generate_mq_pcaps() {
         vdev="${vdev},rx_pcap=${shard}"
         flow_offset=$((flow_offset + flows_this))
     done
+    if ((pcap_infinite_rx == 1)); then
+        vdev="${vdev},infinite_rx=1"
+    fi
     printf '%s\n' "$vdev"
 }
 
@@ -210,12 +235,18 @@ append_result synthetic-scale-huge synthetic 1 4 0 0 1000000 100000 \
         --packets 1000000 --flows 100000 --flow-capacity 131072 --ring-size 4096 \
         --scale-interval 100000
 
+pcap_vdev="net_pcap0,rx_pcap=$pcap_file"
+if ((pcap_infinite_rx == 1)); then
+    pcap_vdev="${pcap_vdev},infinite_rx=1"
+fi
+
 append_result pcap-spi-4w-huge ethdev 4 4 1 1 "$pcap_packets" "$pcap_flows" \
     env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
         -l 0-4 --huge-dir "$mount_point" --in-memory --no-pci \
-        --vdev "net_pcap0,rx_pcap=$pcap_file" --no-telemetry -- \
+        --vdev "$pcap_vdev" --no-telemetry -- \
         --mode ethdev --port 0 --workers 4 --max-workers 4 \
-        --packets "$pcap_packets" --flow-capacity 131072 --ring-size 4096 \
+        --packets "$pcap_packets" --rx-mbufs "$pcap_rx_mbufs" \
+        --flow-capacity 131072 --ring-size 4096 \
         --scale-interval 0 --fixed-workers
 
 mq_vdev="$(generate_mq_pcaps)"
@@ -228,8 +259,10 @@ append_result "pcap-spi-mq-${mq_dispatchers}d${mq_workers}w-huge" \
         --vdev "$mq_vdev" --no-telemetry -- \
         --mode ethdev --port 0 --workers "$mq_workers" \
         --max-workers "$mq_workers" --packets "$mq_packets" \
+        --rx-mbufs "$mq_rx_mbufs" \
         --flow-capacity 131072 --ring-size 4096 --scale-interval 0 \
         --rx-queues "$mq_dispatchers" --dispatchers "$mq_dispatchers" \
+        --per-dispatcher-limit \
         --fixed-workers
 
 printf 'Wrote %s\n' "$output"

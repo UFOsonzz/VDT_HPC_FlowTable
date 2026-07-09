@@ -110,6 +110,7 @@ typedef struct {
     _Atomic uint16_t *active_worker_count;
     _Atomic uint64_t *dispatched;
     _Atomic bool *stop;
+    uint64_t packet_limit;
     uint16_t dispatch_burst;
     uint16_t producer_id;
     bool use_owner_map;
@@ -915,12 +916,15 @@ static int dispatcher_loop(void *argument) {
     ft_dispatcher_t *dispatcher = argument;
     const ft_app_config_t *config = dispatcher->config;
     struct rte_mbuf *mbufs[64];
+    uint64_t local_dispatched = 0;
 
     while (!force_quit &&
            !atomic_load_explicit(dispatcher->stop, memory_order_acquire) &&
            (config->packet_count == 0 ||
             atomic_load_explicit(dispatcher->dispatched,
-                                 memory_order_acquire) < config->packet_count)) {
+                                 memory_order_acquire) < config->packet_count) &&
+           (dispatcher->packet_limit == 0 ||
+            local_dispatched < dispatcher->packet_limit)) {
         uint16_t count = rte_eth_rx_burst(config->port_id,
                                           dispatcher->rx_queue_id,
                                           mbufs, RTE_DIM(mbufs));
@@ -947,6 +951,11 @@ static int dispatcher_loop(void *argument) {
                 rte_pktmbuf_free(mbufs[i]);
                 continue;
             }
+            if (dispatcher->packet_limit != 0 &&
+                local_dispatched >= dispatcher->packet_limit) {
+                rte_pktmbuf_free(mbufs[i]);
+                continue;
+            }
             if (ft_packet_parse_mbuf(mbufs[i], &packet) != 0) {
                 rte_pktmbuf_free(mbufs[i]);
                 continue;
@@ -967,6 +976,7 @@ static int dispatcher_loop(void *argument) {
                 rte_pktmbuf_free(mbufs[i]);
                 continue;
             }
+            local_dispatched++;
             item = dispatch_get_item(&dispatcher->workers[worker_id],
                                      &dispatcher->queues[worker_id],
                                      dispatcher->dispatch_burst);
@@ -1425,6 +1435,7 @@ cleanup_rules:
 static int configure_ethdev(uint16_t port_id,
                  uint16_t rx_queue_count,
                  uint16_t worker_count,
+                 uint32_t requested_mbuf_count,
                  bool tx_enabled,
                  struct rte_mempool **mbuf_pool) {
     struct rte_eth_dev_info info;
@@ -1433,6 +1444,7 @@ static int configure_ethdev(uint16_t port_id,
     uint16_t tx_desc = 1024;
     uint16_t tx_queues = tx_enabled ? worker_count : 1;
     int socket_id = rte_eth_dev_socket_id(port_id);
+    uint32_t minimum_mbuf_count;
     uint32_t mbuf_count;
     int result;
 
@@ -1478,7 +1490,11 @@ static int configure_ethdev(uint16_t port_id,
         return result;
     }
     rte_eth_dev_adjust_nb_rx_tx_desc(port_id, &rx_desc, &tx_desc);
-    mbuf_count = 8192U * rx_queue_count;
+    minimum_mbuf_count = 8192U * rx_queue_count;
+    mbuf_count = requested_mbuf_count == 0 ? minimum_mbuf_count :
+        requested_mbuf_count;
+    if (mbuf_count < minimum_mbuf_count)
+        mbuf_count = minimum_mbuf_count;
     *mbuf_pool = rte_pktmbuf_pool_create("ft_rx_mbuf_pool",
                                          mbuf_count, 256, 0,
                                          RTE_MBUF_DEFAULT_BUF_SIZE,
@@ -1549,6 +1565,7 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
     uint64_t next_stats = 0;
     uint64_t dispatched = 0;
     bool use_owner_map;
+    bool ethdev_ready = false;
     bool launch_ok = true;
     int result = -1;
 
@@ -1577,10 +1594,12 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
     memset(workers, 0, sizeof(workers));
     if (configure_ethdev(config->port_id, config->rx_queue_count,
                          launched_workers,
+                         config->rx_mbuf_count,
                          config->tx_enabled, &mbuf_pool) != 0) {
         fprintf(stderr, "Cannot configure ethdev port %u\n", config->port_id);
         goto cleanup;
     }
+    ethdev_ready = true;
     if (use_owner_map) {
         owner_capacity = config->flow_capacity_per_worker * launched_workers * 2U;
         if (owner_table_create(&owners, "ft_owner_ethdev", owner_capacity,
@@ -1636,6 +1655,13 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
     if (config->stats_interval_seconds != 0)
         next_stats = start + config->stats_interval_seconds * rte_get_tsc_hz();
     if (config->dispatcher_count > 1) {
+        uint64_t base_limit = 0;
+        uint64_t limit_remainder = 0;
+
+        if (config->per_dispatcher_limit && config->packet_count != 0) {
+            base_limit = config->packet_count / config->dispatcher_count;
+            limit_remainder = config->packet_count % config->dispatcher_count;
+        }
         for (uint16_t i = 0; i < config->dispatcher_count; i++) {
             dispatchers[i].dispatcher_id = i;
             dispatchers[i].rx_queue_id = i;
@@ -1647,6 +1673,9 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
             dispatchers[i].active_worker_count = &active_worker_count;
             dispatchers[i].dispatched = &dispatched_atomic;
             dispatchers[i].stop = &dispatcher_stop;
+            dispatchers[i].packet_limit = base_limit;
+            if (i == config->dispatcher_count - 1)
+                dispatchers[i].packet_limit += limit_remainder;
             dispatchers[i].dispatch_burst = dispatch_burst;
             dispatchers[i].producer_id = i;
             dispatchers[i].use_owner_map = use_owner_map;
@@ -1810,7 +1839,7 @@ cleanup:
     for (uint16_t i = 0; i < launched_workers; i++)
         destroy_worker(&workers[i]);
     owner_table_destroy(&owners);
-    if (rte_eth_dev_is_valid_port(config->port_id)) {
+    if (ethdev_ready && rte_eth_dev_is_valid_port(config->port_id)) {
         rte_eth_dev_stop(config->port_id);
         rte_eth_dev_close(config->port_id);
     }
