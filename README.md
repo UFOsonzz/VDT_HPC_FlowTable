@@ -39,9 +39,21 @@ Build và test:
 ```bash
 make -j
 make test
+sudo scripts/setup_hugepages_if_needed.sh --mb 1024 --mount-point /mnt/huge
 make benchmark
 make benchmark-e2e
 ```
+
+`make benchmark` và `make benchmark-e2e` mặc định kiểm tra hugepages trước khi
+chạy, bỏ `--no-huge` và truyền `--huge-dir /mnt/huge` cho DPDK. Benchmark vẫn
+dùng `--in-memory` để tránh DPDK multiprocess socket trên laptop/sandbox; cờ
+này không bật chế độ no-huge. Có thể đổi bằng `HUGEPAGE_MB` và
+`HUGEPAGE_MOUNT`.
+
+E2E benchmark tự tạo `generated/spi_benchmark.pcap` nếu file chưa tồn tại.
+PCAP này được sinh từ `SPI_DPI_rule.xlsx` bằng
+`scripts/generate_spi_pcap.py`, mặc định `PCAP_FLOWS=100000` và
+`PCAP_PACKETS=200000`.
 
 ## Chạy synthetic pipeline
 

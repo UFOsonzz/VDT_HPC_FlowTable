@@ -1,6 +1,6 @@
 # Test and Benchmark Report
 
-Ngày đo: 2026-06-20.
+Ngày đo gần nhất: 2026-07-09.
 
 ## Môi trường
 
@@ -8,11 +8,14 @@ Ngày đo: 2026-06-20.
 - NUMA: 1 node
 - DPDK: 25.11.1
 - Compiler: GCC 16.1.1, `-O3`
-- Chế độ: `--no-huge --in-memory --no-pci` trong sandbox
+- Chế độ benchmark hiện tại: hugepages 2MB, 512 pages, `--huge-dir /mnt/huge`,
+  `--in-memory`, `--no-pci`
 - Dataset rule: `config/spi_rules.csv`
 
 Đây là môi trường laptop, không phải server data-plane chuyên dụng. Turbo,
-shared LLC/memory bandwidth và không dùng hugepages ảnh hưởng hiệu suất scale.
+shared LLC/memory bandwidth và governor của CPU vẫn ảnh hưởng hiệu suất scale.
+`--in-memory` được giữ để tránh DPDK multiprocess socket trên laptop/sandbox;
+benchmark không dùng `--no-huge`.
 
 ## Functional test
 
@@ -38,7 +41,10 @@ PCAP PMD smoke test phát 10 packet VLAN/TCP gồm năm cặp UL/DL của cùng 
 dispatched=10 processed=10 active_flows=1 dropped=0
 ```
 
-## End-to-end synthetic pipeline
+## Development smoke synthetic pipeline
+
+Đây là smoke benchmark lịch sử cho chế độ phát triển `--no-huge`. Benchmark
+hiện tại ở các mục bên dưới đã chuyển sang hugepages.
 
 Command:
 
@@ -79,14 +85,15 @@ normalize, owner-map, ring, worker flow table, SPI/action cache và drain worker
 
 | Profile | Mode | Workers | Packets | Processed | Dropped | Active flow | PPS |
 |---|---|---:|---:|---:|---:|---:|---:|
-| synthetic-fixed | synthetic | 1/1 | 50,000 | 50,000 | 0 | 5,000 | 6.43 Mpps |
-| synthetic-scale | synthetic | 1 -> 2 | 50,000 | 50,000 | 0 | 20,000 | 2.98 Mpps |
-| pcap-vlan | ethdev/PCAP PMD | 1/1 | 10 | 10 | 0 | 1 | 0.16 Mpps |
+| synthetic-fixed-huge | synthetic | 1/1 | 200,000 | 200,000 | 0 | 20,000 | 4.45 Mpps |
+| synthetic-scale-huge | synthetic | 1 -> 4 | 400,000 | 400,000 | 0 | 100,000 | 2.95 Mpps |
+| pcap-spi-huge | ethdev/PCAP PMD | 1 -> 4 | 200,000 | 200,000 | 0 | 100,000 | 1.57 Mpps |
 
-`synthetic-scale` bật logical dynamic scaling. Dispatcher dùng owner-map nên flow
-đã có owner vẫn đi về worker cũ; worker mới chỉ nhận flow mới sau thời điểm
-scale. PPS profile này không so trực tiếp với fixed profile vì số flow lớn hơn
-và có thêm owner-map/control overhead.
+`synthetic-scale-huge` bật logical dynamic scaling. Dispatcher dùng owner-map
+nên flow đã có owner vẫn đi về worker cũ; worker mới chỉ nhận flow mới sau thời
+điểm scale. PPS profile này không so trực tiếp với fixed profile vì số flow lớn
+hơn và có thêm owner-map/control overhead. `pcap-spi-huge` dùng PCAP Ethernet
+được sinh từ `SPI_DPI_rule.xlsx` qua `scripts/generate_spi_pcap.py`.
 
 ## Worker scale benchmark
 
@@ -96,17 +103,17 @@ Nguồn chính xác: `reports/benchmark_results.csv`.
 
 | Worker | PPS | Speedup | Parallel efficiency |
 |---:|---:|---:|---:|
-| 1 | 8.08 Mpps | 1.00x | 100% |
-| 2 | 14.34 Mpps | 1.78x | 88.8% |
-| 4 | 20.08 Mpps | 2.49x | 62.1% |
+| 1 | 21.28 Mpps | 1.00x | 100% |
+| 2 | 41.44 Mpps | 1.95x | 97.4% |
+| 4 | 57.23 Mpps | 2.69x | 67.2% |
 
 ### Hot-cache: 4.096 flow mỗi worker
 
 | Worker | PPS | Speedup | Parallel efficiency |
 |---:|---:|---:|---:|
-| 1 | 9.77 Mpps | 1.00x | 100% |
-| 2 | 17.32 Mpps | 1.77x | 88.6% |
-| 4 | 22.88 Mpps | 2.34x | 58.5% |
+| 1 | 22.51 Mpps | 1.00x | 100% |
+| 2 | 45.62 Mpps | 2.03x | 101.3% |
+| 4 | 66.66 Mpps | 2.96x | 74.0% |
 
 Throughput tăng theo core nhưng chưa tuyến tính ở bốn core trên laptop này.
 Thiết kế shard không có shared flow lock; giới hạn còn lại chủ yếu là all-core

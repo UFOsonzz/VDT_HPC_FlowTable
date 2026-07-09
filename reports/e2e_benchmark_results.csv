@@ -1,4 +1,4 @@
 profile,mode,workers,max_workers,total_packets,flows,processed,dropped,active_flows,seconds,pps
-synthetic-fixed,synthetic,1,1,50000,5000,50000,0,5000,0.007781,6425996
-synthetic-scale,synthetic,1,2,50000,20000,50000,0,20000,0.016770,2981597
-pcap-vlan,ethdev,1,1,10,0,10,0,1,0.000063,158171
+synthetic-fixed-huge,synthetic,1,1,200000,20000,200000,0,20000,0.044928,4451589
+synthetic-scale-huge,synthetic,1,4,400000,100000,400000,0,100000,0.135596,2949938
+pcap-spi-huge,ethdev,1,4,200000,100000,200000,0,100000,0.127279,1571353

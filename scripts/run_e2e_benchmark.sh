@@ -1,8 +1,37 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+hugepage_mb="${HUGEPAGE_MB:-1024}"
+mount_point="${HUGEPAGE_MOUNT:-/mnt/huge}"
+pcap_file="${PCAP_FILE:-generated/spi_benchmark.pcap}"
+pcap_packets="${PCAP_PACKETS:-200000}"
+pcap_flows="${PCAP_FLOWS:-100000}"
+output="${E2E_BENCH_OUTPUT:-reports/e2e_benchmark_results.csv}"
+
 mkdir -p reports
-output="reports/e2e_benchmark_results.csv"
+
+if ! scripts/setup_hugepages_if_needed.sh \
+    --check-only --mb "$hugepage_mb" --mount-point "$mount_point"; then
+    cat >&2 <<EOF
+Hugepages are not ready.
+Prepare them first, for example:
+
+  sudo scripts/setup_hugepages_if_needed.sh --mb $hugepage_mb --mount-point $mount_point
+
+Then rerun:
+
+  make benchmark-e2e
+EOF
+    exit 1
+fi
+
+if [[ ! -f "$pcap_file" ]]; then
+    python3 scripts/generate_spi_pcap.py \
+        --output "$pcap_file" \
+        --flows "$pcap_flows" \
+        --packets "$pcap_packets"
+fi
+
 printf 'profile,mode,workers,max_workers,total_packets,flows,processed,dropped,active_flows,seconds,pps\n' > "$output"
 
 extract_field() {
@@ -38,26 +67,25 @@ append_result() {
         "$processed" "$dropped" "$active_flows" "$seconds" "$pps" >> "$output"
 }
 
-append_result synthetic-fixed synthetic 1 1 50000 5000 \
+append_result synthetic-fixed-huge synthetic 1 1 200000 20000 \
     env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
-        -l 0-1 --no-huge --in-memory --no-pci --no-telemetry -- \
+        -l 0-1 --huge-dir "$mount_point" --in-memory --no-pci --no-telemetry -- \
         --mode synthetic --workers 1 --max-workers 1 \
-        --packets 50000 --flows 5000 --flow-capacity 8192 --ring-size 1024
+        --packets 200000 --flows 20000 --flow-capacity 32768 --ring-size 2048
 
-append_result synthetic-scale synthetic 1 2 50000 20000 \
+append_result synthetic-scale-huge synthetic 1 4 400000 100000 \
     env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
-        -l 0-2 --no-huge --in-memory --no-pci --no-telemetry -- \
-        --mode synthetic --workers 1 --max-workers 2 \
-        --packets 50000 --flows 20000 --flow-capacity 32768 --ring-size 1024 \
-        --scale-interval 10000
+        -l 0-4 --huge-dir "$mount_point" --in-memory --no-pci --no-telemetry -- \
+        --mode synthetic --workers 1 --max-workers 4 \
+        --packets 400000 --flows 100000 --flow-capacity 131072 --ring-size 4096 \
+        --scale-interval 100000
 
-if [[ -f traffic_vlan.pcap ]]; then
-    append_result pcap-vlan ethdev 1 1 10 0 \
-        env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
-            -l 0-1 --no-huge --in-memory \
-            --vdev net_pcap0,rx_pcap=traffic_vlan.pcap --no-telemetry -- \
-            --mode ethdev --port 0 --workers 1 --max-workers 1 \
-            --packets 10 --flow-capacity 1024 --ring-size 256
-fi
+append_result pcap-spi-huge ethdev 1 4 "$pcap_packets" "$pcap_flows" \
+    env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
+        -l 0-4 --huge-dir "$mount_point" --in-memory --no-pci \
+        --vdev "net_pcap0,rx_pcap=$pcap_file" --no-telemetry -- \
+        --mode ethdev --port 0 --workers 1 --max-workers 4 \
+        --packets "$pcap_packets" --flow-capacity 131072 --ring-size 4096 \
+        --scale-interval 0
 
 printf 'Wrote %s\n' "$output"
