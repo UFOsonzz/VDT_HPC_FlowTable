@@ -2,6 +2,7 @@
 #define FT_PIPELINE_H
 
 #include <stdatomic.h>
+#include <stdio.h>
 
 #include "ft_common.h"
 #include "ft_config.h"
@@ -41,7 +42,7 @@ typedef struct {
     struct rte_ring *input;
     struct rte_mempool *work_pool;
     ft_flow_table_t flow_table;
-    const ft_rule_set_t *rules;
+    _Atomic(ft_rule_set_t *) *rules_ref;
     ft_worker_local_stats_t local;
     ft_worker_published_stats_t published;
     uint64_t timeout_cycles;
@@ -59,17 +60,21 @@ typedef struct {
 
 typedef struct {
     uint16_t worker_count;
+    uint16_t max_worker_count;
     uint32_t flow_capacity_per_worker;
     uint32_t ring_size;
     uint32_t burst_size;
     uint32_t aging_budget;
+    uint32_t stats_interval_seconds;
     uint32_t timeout_seconds;
     uint64_t packet_count;
+    uint64_t scale_interval_packets;
     uint32_t synthetic_flow_count;
     const char *rule_path;
     const char *direction_path;
     uint16_t port_id;
     bool tx_enabled;
+    bool cli_enabled;
 } ft_app_config_t;
 
 int ft_pipeline_run_synthetic(const ft_app_config_t *config);

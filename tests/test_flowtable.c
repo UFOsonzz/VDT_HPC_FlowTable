@@ -332,18 +332,17 @@ static void test_vlan_tcp_parser(void) {
     CHECK(data != NULL);
     memset(data, 0, frame_size);
     ether = (struct rte_ether_hdr *)data;
-    ipv4 = (struct rte_ipv4_hdr *)(ether + 1); {
-        struct rte_udp_hdr *udp = (struct rte_udp_hdr *)(ipv4 + 1);
-        ether->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
-        ipv4->version_ihl = 0x45;
-        ipv4->total_length =
-            rte_cpu_to_be_16(sizeof(*ipv4) + sizeof(*udp));
-        ipv4->next_proto_id = IPPROTO_UDP;
-        ipv4->src_addr = rte_cpu_to_be_32(0x0a000002);
-        ipv4->dst_addr = rte_cpu_to_be_32(0x08080808);
-        udp->src_port = rte_cpu_to_be_16(50000);
-        udp->dst_port = rte_cpu_to_be_16(53);
-    }
+    ipv4 = (struct rte_ipv4_hdr *)(ether + 1);
+    struct rte_udp_hdr *udp = (struct rte_udp_hdr *)(ipv4 + 1);
+    ether->ether_type = rte_cpu_to_be_16(RTE_ETHER_TYPE_IPV4);
+    ipv4->version_ihl = 0x45;
+    ipv4->total_length =
+        rte_cpu_to_be_16(sizeof(*ipv4) + sizeof(*udp));
+    ipv4->next_proto_id = IPPROTO_UDP;
+    ipv4->src_addr = rte_cpu_to_be_32(0x0a000002);
+    ipv4->dst_addr = rte_cpu_to_be_32(0x08080808);
+    udp->src_port = rte_cpu_to_be_16(50000);
+    udp->dst_port = rte_cpu_to_be_16(53);
     CHECK(ft_packet_parse_mbuf(mbuf, &packet) == 0);
     CHECK(packet.vlan_id == 0);
     CHECK(packet.src_ip == 0x0a000002 && packet.dst_ip == 0x08080808);
@@ -368,17 +367,16 @@ static void test_flow_capacity(void) {
             .server_port = 80,
         };
         CHECK(ft_flow_table_get_or_create(&table, &key, i, &created) != NULL);
-    } {
-        ft_flow_key_t extra = {
-            .tenant_id = 1,
-            .protocol = IPPROTO_TCP,
-            .client_ip = 0x0a00ffff,
-            .server_ip = 0xc0000201,
-            .client_port = 65500,
-            .server_port = 80,
-        };
-        CHECK(ft_flow_table_get_or_create(&table, &extra, 100, &created) == NULL);
     }
+    ft_flow_key_t extra = {
+        .tenant_id = 1,
+        .protocol = IPPROTO_TCP,
+        .client_ip = 0x0a00ffff,
+        .server_ip = 0xc0000201,
+        .client_port = 65500,
+        .server_port = 80,
+    };
+    CHECK(ft_flow_table_get_or_create(&table, &extra, 100, &created) == NULL);
     CHECK(table.active == 64);
     ft_flow_table_destroy(&table);
 }
