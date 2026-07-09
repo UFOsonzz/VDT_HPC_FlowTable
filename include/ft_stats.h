@@ -6,6 +6,8 @@
 
 #include "ft_pipeline.h"
 
+#define FT_DASHBOARD_HISTORY 32U
+
 typedef struct {
     uint64_t packets;
     uint64_t bytes;
@@ -22,10 +24,17 @@ typedef struct {
 } ft_stats_snapshot_t;
 
 typedef struct {
+    uint64_t start_cycles;
     uint64_t last_cycles;
     uint64_t last_packets;
     uint64_t last_bytes;
     uint64_t last_dropped;
+    uint64_t last_created_flows;
+    double active_flow_history[FT_DASHBOARD_HISTORY];
+    double throughput_history[FT_DASHBOARD_HISTORY];
+    double drop_history[FT_DASHBOARD_HISTORY];
+    uint16_t history_count;
+    uint16_t history_next;
 } ft_dashboard_state_t;
 
 void ft_stats_print_title(const char *title);
@@ -55,6 +64,12 @@ void ft_stats_print_dashboard(const ft_worker_t *workers,
                               const ft_rule_set_t *rules,
                               ft_dashboard_state_t *state,
                               bool clear_screen);
+void ft_stats_print_benchmark(const ft_worker_t *workers,
+                              uint16_t worker_count,
+                              uint16_t active_worker_count,
+                              uint64_t dispatched,
+                              const ft_rule_set_t *rules,
+                              ft_dashboard_state_t *state);
 void ft_stats_print_live(const ft_worker_t *workers,
                          uint16_t worker_count,
                          uint16_t active_worker_count,

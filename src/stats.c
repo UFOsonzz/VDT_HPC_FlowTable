@@ -49,6 +49,113 @@ static const char *drop_color(uint64_t dropped) {
     return dropped == 0 ? FT_ANSI_GREEN : FT_ANSI_RED;
 }
 
+static double cycles_to_seconds(uint64_t cycles) {
+    return (double)cycles / (double)rte_get_tsc_hz();
+}
+
+static void dashboard_history_append(ft_dashboard_state_t *state,
+                                     double active_flows,
+                                     double pps,
+                                     double drops) {
+    uint16_t index = state->history_next;
+
+    state->active_flow_history[index] = active_flows;
+    state->throughput_history[index] = pps;
+    state->drop_history[index] = drops;
+    state->history_next =
+        (uint16_t)((state->history_next + 1U) % FT_DASHBOARD_HISTORY);
+    if (state->history_count < FT_DASHBOARD_HISTORY)
+        state->history_count++;
+}
+
+static uint16_t dashboard_history_index(const ft_dashboard_state_t *state,
+                                        uint16_t position) {
+    if (state->history_count < FT_DASHBOARD_HISTORY)
+        return position;
+    return (uint16_t)((state->history_next + position) %
+                      FT_DASHBOARD_HISTORY);
+}
+
+static double dashboard_history_max(const ft_dashboard_state_t *state,
+                                    const double *history) {
+    double maximum = 0.0;
+
+    for (uint16_t i = 0; i < state->history_count; i++) {
+        uint16_t index = dashboard_history_index(state, i);
+
+        if (history[index] > maximum)
+            maximum = history[index];
+    }
+    return maximum;
+}
+
+static void print_graph_line(const char *label,
+                             const ft_dashboard_state_t *state,
+                             const double *history,
+                             double latest,
+                             const char *unit) {
+    double maximum = dashboard_history_max(state, history);
+
+    printf("%-12s latest=%10.0f %-8s max=%10.0f |",
+           label, latest, unit, maximum);
+    for (uint16_t i = 0; i < state->history_count; i++) {
+        uint16_t index = dashboard_history_index(state, i);
+        double ratio = maximum > 0.0 ? history[index] / maximum : 0.0;
+        char marker = '.';
+
+        if (ratio >= 0.66)
+            marker = '#';
+        else if (ratio >= 0.33)
+            marker = '+';
+        else if (ratio > 0.0)
+            marker = '-';
+        putchar(marker);
+    }
+    printf("|\n");
+}
+
+static void update_benchmark_window(const ft_stats_snapshot_t *snapshot,
+                                    ft_dashboard_state_t *state,
+                                    uint64_t now,
+                                    double *elapsed,
+                                    double *interval_seconds,
+                                    double *pps,
+                                    double *mbps,
+                                    double *flow_create_rate,
+                                    uint64_t *drop_delta) {
+    uint64_t created_delta = 0;
+
+    if (state->start_cycles == 0)
+        state->start_cycles = now;
+    *elapsed = now > state->start_cycles ?
+        cycles_to_seconds(now - state->start_cycles) : 0.0;
+    *interval_seconds = 0.0;
+    *pps = 0.0;
+    *mbps = 0.0;
+    *flow_create_rate = 0.0;
+    *drop_delta = 0;
+    if (state->last_cycles != 0 && now > state->last_cycles) {
+        *interval_seconds = cycles_to_seconds(now - state->last_cycles);
+        *pps = *interval_seconds > 0.0 ?
+            (double)(snapshot->packets - state->last_packets) /
+            *interval_seconds : 0.0;
+        *mbps = *interval_seconds > 0.0 ?
+            ((double)(snapshot->bytes - state->last_bytes) * 8.0) /
+            *interval_seconds / 1000000.0 : 0.0;
+        created_delta = snapshot->created_flows - state->last_created_flows;
+        *flow_create_rate = *interval_seconds > 0.0 ?
+            (double)created_delta / *interval_seconds : 0.0;
+        *drop_delta = snapshot->dropped - state->last_dropped;
+    }
+    state->last_cycles = now;
+    state->last_packets = snapshot->packets;
+    state->last_bytes = snapshot->bytes;
+    state->last_dropped = snapshot->dropped;
+    state->last_created_flows = snapshot->created_flows;
+    dashboard_history_append(state, (double)snapshot->active_flows, *pps,
+                             (double)*drop_delta);
+}
+
 void ft_stats_print_title(const char *title) {
     printf(FT_ANSI_BOLD FT_ANSI_CYAN "%s" FT_ANSI_RESET "\n", title);
 }
@@ -313,26 +420,22 @@ void ft_stats_print_dashboard(const ft_worker_t *workers,
                               bool clear_screen) {
     ft_stats_snapshot_t snapshot;
     uint64_t now = rte_get_tsc_cycles();
-    double seconds = 0.0;
+    double elapsed = 0.0;
+    double interval_seconds = 0.0;
     double pps = 0.0;
     double mbps = 0.0;
+    double flow_create_rate = 0.0;
+    double avg_pps = 0.0;
+    double avg_flow_create_rate = 0.0;
     uint64_t drop_delta = 0;
 
     collect_stats(workers, worker_count, &snapshot);
-    if (state->last_cycles != 0 && now > state->last_cycles) {
-        seconds = (double)(now - state->last_cycles) /
-                  (double)rte_get_tsc_hz();
-        pps = seconds > 0.0 ?
-            (double)(snapshot.packets - state->last_packets) / seconds : 0.0;
-        mbps = seconds > 0.0 ?
-            ((double)(snapshot.bytes - state->last_bytes) * 8.0) /
-            seconds / 1000000.0 : 0.0;
-        drop_delta = snapshot.dropped - state->last_dropped;
-    }
-    state->last_cycles = now;
-    state->last_packets = snapshot.packets;
-    state->last_bytes = snapshot.bytes;
-    state->last_dropped = snapshot.dropped;
+    update_benchmark_window(&snapshot, state, now, &elapsed,
+                            &interval_seconds, &pps, &mbps,
+                            &flow_create_rate, &drop_delta);
+    avg_pps = elapsed > 0.0 ? (double)snapshot.packets / elapsed : 0.0;
+    avg_flow_create_rate =
+        elapsed > 0.0 ? (double)snapshot.created_flows / elapsed : 0.0;
 
     if (clear_screen)
         printf(FT_ANSI_CLEAR);
@@ -355,6 +458,22 @@ void ft_stats_print_dashboard(const ft_worker_t *workers,
            drop_color(snapshot.dropped), snapshot.dropped,
            snapshot.forwarded);
     printf("+--------------+--------------+--------------+--------------+--------------+\n\n");
+    printf(FT_ANSI_BOLD "benchmark realtime" FT_ANSI_RESET "\n");
+    printf("+--------------+--------------+--------------+--------------+--------------+\n");
+    printf("| elapsed sec  | avg pps      | flow create/s| interval sec | rules        |\n");
+    printf("+--------------+--------------+--------------+--------------+--------------+\n");
+    printf("| %12.3f | %12.0f | %12.0f | %12.3f | %12u |\n",
+           elapsed, avg_pps, avg_flow_create_rate, interval_seconds,
+           rules == NULL ? 0 : rules->count);
+    printf("+--------------+--------------+--------------+--------------+--------------+\n\n");
+    printf(FT_ANSI_BOLD "graphs" FT_ANSI_RESET "\n");
+    print_graph_line("Active Flow", state, state->active_flow_history,
+                     (double)snapshot.active_flows, "flows");
+    print_graph_line("Throughput", state, state->throughput_history,
+                     pps, "pps");
+    print_graph_line("Packet Drop", state, state->drop_history,
+                     (double)drop_delta, "drops");
+    printf("\n");
     printf(FT_ANSI_BOLD "workers" FT_ANSI_RESET "\n");
     printf("+----+----------+-------+-------+--------+--------------+--------------+--------------+\n");
     printf("| id | state    | lcore | queue | packet | active flow  | dropped      | bytes        |\n");
@@ -392,11 +511,65 @@ void ft_stats_print_dashboard(const ft_worker_t *workers,
     printf("\n" FT_ANSI_BOLD "top rule hits" FT_ANSI_RESET "\n");
     print_rule_table(&snapshot, rules, 8);
     printf("\n" FT_ANSI_DIM
-           "commands: show statistics | show flow | show worker | show worker N"
-           " | show traffic | show dashboard | rules | reload | scale up"
-           " | scale down | quit"
+           "commands: show statistics | show benchmark | show flow"
+           " | show worker | show worker N | show traffic | show dashboard"
+           " | rules | reload | scale up | scale down | quit"
            FT_ANSI_RESET "\n");
     fflush(stdout);
+}
+
+void ft_stats_print_benchmark(const ft_worker_t *workers,
+                              uint16_t worker_count,
+                              uint16_t active_worker_count,
+                              uint64_t dispatched,
+                              const ft_rule_set_t *rules,
+                              ft_dashboard_state_t *state) {
+    ft_stats_snapshot_t snapshot;
+    uint64_t now = rte_get_tsc_cycles();
+    double elapsed = 0.0;
+    double interval_seconds = 0.0;
+    double pps = 0.0;
+    double mbps = 0.0;
+    double flow_create_rate = 0.0;
+    double avg_pps = 0.0;
+    double avg_flow_create_rate = 0.0;
+    uint64_t drop_delta = 0;
+
+    collect_stats(workers, worker_count, &snapshot);
+    update_benchmark_window(&snapshot, state, now, &elapsed,
+                            &interval_seconds, &pps, &mbps,
+                            &flow_create_rate, &drop_delta);
+    avg_pps = elapsed > 0.0 ? (double)snapshot.packets / elapsed : 0.0;
+    avg_flow_create_rate =
+        elapsed > 0.0 ? (double)snapshot.created_flows / elapsed : 0.0;
+    ft_stats_print_title("show benchmark");
+    printf("+----------------+----------------+----------------+----------------+\n");
+    printf("| active workers | dispatched     | processed      | active flows   |\n");
+    printf("+----------------+----------------+----------------+----------------+\n");
+    printf("| %7u/%-6u | %14" PRIu64 " | %14" PRIu64 " | %14" PRIu64
+           " |\n",
+           active_worker_count, worker_count, dispatched, snapshot.packets,
+           snapshot.active_flows);
+    printf("+----------------+----------------+----------------+----------------+\n\n");
+    printf("+--------------+--------------+--------------+--------------+--------------+\n");
+    printf("| elapsed sec  | interval sec | interval pps | avg pps      | mbps         |\n");
+    printf("+--------------+--------------+--------------+--------------+--------------+\n");
+    printf("| %12.3f | %12.3f | %12.0f | %12.0f | %12.2f |\n",
+           elapsed, interval_seconds, pps, avg_pps, mbps);
+    printf("+--------------+--------------+--------------+--------------+--------------+\n\n");
+    printf("+--------------+--------------+--------------+--------------+--------------+\n");
+    printf("| created flow | create/s int | create/s avg | int drops    | total drops  |\n");
+    printf("+--------------+--------------+--------------+--------------+--------------+\n");
+    printf("| %12" PRIu64 " | %12.0f | %12.0f | %s%12" PRIu64
+           FT_ANSI_RESET " | %s%12" PRIu64 FT_ANSI_RESET " |\n",
+           snapshot.created_flows, flow_create_rate, avg_flow_create_rate,
+           drop_color(drop_delta), drop_delta,
+           drop_color(snapshot.dropped), snapshot.dropped);
+    printf("+--------------+--------------+--------------+--------------+--------------+\n");
+    printf("deleted_flows=%" PRIu64 " timed_out_flows=%" PRIu64
+           " rule_hits=%" PRIu64 " rules=%u\n",
+           snapshot.deleted_flows, snapshot.timed_out_flows,
+           snapshot.total_rule_hits, rules == NULL ? 0 : rules->count);
 }
 
 void ft_stats_print_live(const ft_worker_t *workers,

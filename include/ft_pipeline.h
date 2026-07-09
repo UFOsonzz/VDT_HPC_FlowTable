@@ -70,8 +70,6 @@ typedef struct {
     uint32_t stats_interval_seconds;
     uint32_t timeout_seconds;
     uint64_t packet_count;
-    uint64_t scale_interval_packets;
-    uint32_t synthetic_flow_count;
     const char *rule_path;
     const char *direction_path;
     uint16_t port_id;
@@ -85,7 +83,6 @@ typedef struct {
     bool per_dispatcher_limit;
 } ft_app_config_t;
 
-int ft_pipeline_run_synthetic(const ft_app_config_t *config);
 int ft_pipeline_run_ethdev(const ft_app_config_t *config);
 
 #endif

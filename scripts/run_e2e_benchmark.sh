@@ -258,7 +258,7 @@ append_result pcap-spi-4w-huge ethdev 4 4 1 1 5 \
         --mode ethdev --port 0 --workers 4 --max-workers 4 \
         --packets "$pcap_packets" --rx-mbufs "$pcap_rx_mbufs" \
         --flow-capacity 131072 --ring-size 4096 \
-        --scale-interval 0 --fixed-workers
+        --fixed-workers
 
 mq_vdev="$(generate_mq_pcaps)"
 mq_lcore_end=$((mq_workers + mq_dispatchers))
@@ -271,7 +271,7 @@ append_result "pcap-spi-mq-${mq_dispatchers}d${mq_workers}w-huge" \
         --mode ethdev --port 0 --workers "$mq_workers" \
         --max-workers "$mq_workers" --packets "$mq_packets" \
         --rx-mbufs "$mq_rx_mbufs" \
-        --flow-capacity 131072 --ring-size 4096 --scale-interval 0 \
+        --flow-capacity 131072 --ring-size 4096 \
         --rx-queues "$mq_dispatchers" --dispatchers "$mq_dispatchers" \
         --per-dispatcher-limit \
         --fixed-workers

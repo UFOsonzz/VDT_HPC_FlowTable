@@ -90,6 +90,22 @@ flowchart LR
     DCFG[(Direction CSV)] --> DIR
 ```
 
+## Module Breakdown
+
+```mermaid
+flowchart TD
+    MAIN[src/main.c] --> PIPE[src/pipeline.c orchestration]
+    PIPE --> PORT[src/port.c ethdev setup]
+    PIPE --> CTRL[src/control.c CLI signals reload]
+    PIPE --> DISP[src/dispatcher.c RX parse enqueue]
+    PIPE --> WORKER[src/worker.c flow SPI action]
+    DISP --> PACKET[src/packet.c parser normalize]
+    WORKER --> FLOW[src/flow.c flow table aging]
+    WORKER --> RULE[src/rule.c SPI engine]
+    CTRL --> STATS[src/stats.c CLI dashboard graphs]
+    WORKER --> STATS
+```
+
 ## Packet Processing Sequence
 
 ```mermaid
@@ -129,11 +145,8 @@ flowchart TD
     EAL --> CFG[Parse app config]
     CFG --> RULE[Load direction and SPI rules]
     RULE --> INIT[Create workers, rings, mempools, flow tables]
-    INIT --> MODE{Mode}
-    MODE -- ethdev --> PORT[Configure NIC or PCAP PMD]
-    MODE -- synthetic --> SYN[Generate synthetic packet metadata]
+    INIT --> PORT[Configure NIC or PCAP PMD]
     PORT --> RX[RX burst loop]
-    SYN --> RX
     RX --> PROC[Dispatch packets to workers]
     PROC --> CTRL{Control event?}
     CTRL -- reload --> RELOAD[Reload rules for new flows]
@@ -158,6 +171,7 @@ flowchart LR
     RH[Rule hit counters] --> COL
     COL --> LIVE[live stats line]
     COL --> DASH[ANSI dashboard]
+    COL --> BENCH[show benchmark]
     COL --> CLI1[show statistics]
     COL --> CLI2[show worker]
     COL --> CLI3[show worker N]

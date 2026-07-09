@@ -10,8 +10,8 @@ Ngày đo gần nhất: 2026-07-09.
 - Compiler: GCC 16.1.1, `-O3`
 - Chế độ benchmark hiện tại: hugepages 2MB, 512 pages, `--huge-dir /mnt/huge`,
   `--in-memory`, `--no-pci`
-- E2E benchmark: 2 warmup runs bị bỏ qua, 5 measured runs, lấy median PPS;
-  workload PCAP mặc định 100.000 flow / 200.000 packet với `infinite_rx=1`
+- E2E benchmark: 2 warmup runs bị bỏ qua, 5 measured runs, lấy median PPS
+- Workload: PCAP PMD, `infinite_rx=1`, 100.000 flow / 200.000 packet
 - Dataset rule: `config/spi_rules.csv`
 
 Đây là môi trường laptop, không phải server data-plane chuyên dụng. Turbo,
@@ -19,7 +19,7 @@ shared LLC/memory bandwidth và governor của CPU vẫn ảnh hưởng hiệu s
 `--in-memory` được giữ để tránh DPDK multiprocess socket trên laptop/sandbox;
 benchmark không dùng `--no-huge`.
 
-## Functional test
+## Functional Test
 
 ```text
 tests=127 passed=127 failed=0
@@ -32,7 +32,7 @@ Các invariant đã tự động kiểm:
 - rule precedence/action;
 - lookup không tạo flow trùng;
 - timeout xóa và cập nhật counters;
-- phân phối 100.000 flow lên bốn worker cân bằng.
+- phân phối 100.000 flow lên bốn worker cân bằng;
 - parser VLAN/IPv4/TCP trên DPDK mbuf;
 - tenant isolation, unknown-direction symmetric fallback và table-full behavior;
 - đủ sáu traffic classes.
@@ -43,60 +43,17 @@ PCAP PMD smoke test phát 10 packet VLAN/TCP gồm năm cặp UL/DL của cùng 
 dispatched=10 processed=10 active_flows=1 dropped=0
 ```
 
-## Development smoke synthetic pipeline
+## End-to-End Benchmark
 
-Đây là smoke benchmark lịch sử cho chế độ phát triển `--no-huge`. Benchmark
-hiện tại ở các mục bên dưới đã chuyển sang hugepages.
-
-Command:
-
-```bash
-XDG_RUNTIME_DIR=/tmp ./build/flowtable \
-  -l 0-4 --no-huge --in-memory --no-pci --no-telemetry -- \
-  --workers 4 --packets 1000000 --flows 100000 \
-  --flow-capacity 32768
-```
-
-Kết quả:
-
-```text
-dispatched=1,000,000
-processed=1,000,000
-forwarded=1,000,000
-dropped=0
-active_flows=100,000
-median seconds=0.352795
-median throughput=2.84 Mpps
-```
-
-Phân phối flow: 25.071 / 24.910 / 25.022 / 24.997; sai lệch rất nhỏ.
-
-Số end-to-end trên được đo lại sau khi Direction Resolver hỗ trợ Ethernet
-untagged bằng subnet. Ba lần chạy gần nhất đạt 2.38 / 2.83 / 2.85 Mpps; máy
-laptop đang chạy môi trường IDE nên con số này chỉ dùng làm smoke benchmark.
-Invariant quan trọng là đủ 1.000.000 packet, đúng 100.000 bidirectional flow và
-không mất gói. Worker-engine benchmark bên dưới tách khỏi dispatcher/resolver.
-
-## End-to-end benchmark hiện tại
-
-Nguồn chính xác: `reports/e2e_benchmark_results.csv`. CSV lưu cả
+Nguồn chính xác: `reports/e2e_benchmark_results.csv`. CSV lưu
 `warmup_runs`, `measure_runs`, `median_run`, flow lifecycle counters,
 flow-create-rate và lcore allocation. PPS trong bảng là tổng thông lượng packet
 đã xử lý của toàn pipeline ở median run, không phải trung bình mỗi worker.
 
 Workload PCAP giữ tỉ lệ benchmark phổ biến: 100.000 flow và khoảng hai packet
-cho mỗi flow. Vì từng run vẫn khá ngắn, số đo dễ bị ảnh hưởng bởi CPU
-frequency, page cache, branch/cache cold start và nhiễu nền của laptop. Quy
-trình hiện tại chạy warmup process trước và lấy median của 5 lần đo để giữ đủ
-pipeline thật: PCAP PMD với `infinite_rx=1`, parser, direction resolver, SPI
-rule/cache, dispatcher, ring và worker flow table. Không dùng app-level
-"warm flow" reset vì cách đó sẽ bỏ bớt chi phí tạo flow/rule match ban đầu và
-làm benchmark lạc quan hơn workload end-to-end thật.
-
-Các profile này chạy binary `build/flowtable`, vì vậy đo cả dispatcher,
-normalize, flow-affinity dispatch, ring, worker flow table, SPI/action cache và
-drain worker. PCAP profile đi qua DPDK PCAP PMD, `rte_eth_rx_burst()` và parser
-mbuf thật.
+cho mỗi flow. Quy trình chạy warmup process trước và lấy median của 5 lần đo
+để giữ đủ pipeline thật: PCAP PMD với `infinite_rx=1`, parser, direction
+resolver, SPI rule/cache, dispatcher, ring và worker flow table.
 
 | Profile | Mode | Workers | RXQ/Dispatchers | Warmup/Measured | Packets | Processed | Dropped | Active flow | PPS |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -117,56 +74,30 @@ benchmark trên server nên thu thêm `pidstat -t` hoặc `perf stat` song song.
 Flow delete/timeout bằng 0 vì workload 200k packet kết thúc trước timeout và
 không có aging pressure test trong run hiện tại.
 
-E2E benchmark hiện chỉ giữ PCAP profiles vì synthetic không còn phản ánh
-workload cần so sánh: 100.000 flow, khoảng hai packet cho mỗi flow và
-`infinite_rx=1`. `pcap-spi-4w-huge` dùng PCAP Ethernet được sinh từ
-`SPI_DPI_rule.xlsx` qua `scripts/generate_spi_pcap.py`; profile này chạy bốn
-active worker đúng yêu cầu multi-worker. Các profile fixed-worker dùng
-`--fixed-workers`, nên dispatcher chọn worker bằng hash canonical key trực
-tiếp. Profile
-`pcap-spi-mq-2d4w-huge` dùng hai RX queue, hai dispatcher và hai PCAP shard
-độc lập; mỗi dispatcher có SPSC ring riêng tới từng worker, worker round-robin
-drain các ring đó. Profile shard này bật `--per-dispatcher-limit` để
-`infinite_rx=1` không làm dispatcher nhanh đọc vòng lại shard trước khi shard
-còn lại phát đủ packet. Sau khi restart máy và tắt browser, profile multi-RX
-đạt 1.33x so với single dispatcher PCAP PMD, khá hơn single-dispatcher trong
-môi trường laptop/PCAP nhưng vẫn chưa thay thế
-benchmark NIC RSS vật lý vì PCAP PMD không advertise RSS offloads.
-Fast path hiện gom work-item allocation/enqueue theo burst và worker trả
-work-item về mempool theo bulk, đồng thời timestamp RX được lấy theo burst thay
-vì từng packet.
+`pcap-spi-4w-huge` dùng PCAP Ethernet được sinh từ `SPI_DPI_rule.xlsx` qua
+`scripts/generate_spi_pcap.py`. Profile `pcap-spi-mq-2d4w-huge` dùng hai RX
+queue, hai dispatcher và hai PCAP shard độc lập; mỗi dispatcher có SPSC ring
+riêng tới từng worker, worker round-robin drain các ring đó.
 
-## Worker scale benchmark
+## Realtime Benchmark CLI
 
-Nguồn chính xác: `reports/benchmark_results.csv`.
+`scripts/run_cli_pcap.sh` bật PCAP PMD với `infinite_rx=1` mặc định, nên CLI
+có thể theo dõi benchmark live thay vì chỉ xem summary cuối run.
 
-### High-cardinality: 32.768 flow mỗi worker
+Các lệnh hữu ích:
 
-| Worker | PPS | Speedup | Parallel efficiency |
-|---:|---:|---:|---:|
-| 1 | 21.28 Mpps | 1.00x | 100% |
-| 2 | 41.44 Mpps | 1.95x | 97.4% |
-| 4 | 57.23 Mpps | 2.69x | 67.2% |
+- `show benchmark`: elapsed time, interval/average PPS, Mbps, flow-create-rate,
+  interval drop và total drop.
+- `show dashboard`: dashboard ANSI có bảng realtime và graph Active Flow,
+  Throughput, Packet Drop.
+- `show worker N`: thống kê riêng một worker core, gồm traffic classes
+  `HTTP/HTTPS/DNS/TCP/UDP/OTHER`.
 
-### Hot-cache: 4.096 flow mỗi worker
+Chạy nhanh:
 
-| Worker | PPS | Speedup | Parallel efficiency |
-|---:|---:|---:|---:|
-| 1 | 22.51 Mpps | 1.00x | 100% |
-| 2 | 45.62 Mpps | 2.03x | 101.3% |
-| 4 | 66.66 Mpps | 2.96x | 74.0% |
-
-Throughput tăng theo core nhưng chưa tuyến tính ở bốn core trên laptop này.
-Thiết kế shard không có shared flow lock; giới hạn còn lại chủ yếu là all-core
-frequency, cache/memory và platform. Production acceptance target là >=3.2x
-cho bốn physical cores trên server đã pin core, fixed governor và hugepages.
-
-## Lỗi hiệu năng đã phát hiện và sửa
-
-Benchmark ban đầu cập nhật checksum trong các worker context nằm gần nhau,
-gây false sharing. Context sau đó được cache-line aligned và checksum chỉ ghi
-một lần khi kết thúc. Đây cũng là lý do mọi per-core hot counter trong data
-plane phải local/cache aligned.
+```bash
+scripts/run_cli_pcap.sh
+```
 
 ## Chưa đo
 

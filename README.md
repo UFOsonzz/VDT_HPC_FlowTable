@@ -6,7 +6,7 @@ FlowTable là data plane IPv4 hiệu năng cao dùng DPDK, được xây dựng 
 
 Thiết kế dùng pipeline và ownership theo core:
 
-1. RX/PCAP/synthetic ingress nhận packet theo burst.
+1. RX từ NIC hoặc PCAP PMD nhận packet theo burst.
 2. Parser lấy Ethernet, VLAN tùy chọn, IPv4, TCP/UDP.
 3. Direction Resolver xác định tenant và uplink/downlink từ metadata, ingress
    port, VLAN hoặc IP subnet.
@@ -44,15 +44,13 @@ Build và test:
 make -j
 make test
 sudo scripts/setup_hugepages_if_needed.sh --mb 1024 --mount-point /mnt/huge
-make benchmark
 make benchmark-e2e
 ```
 
-`make benchmark` và `make benchmark-e2e` mặc định kiểm tra hugepages trước khi
-chạy, bỏ `--no-huge` và truyền `--huge-dir /mnt/huge` cho DPDK. Benchmark vẫn
-dùng `--in-memory` để tránh DPDK multiprocess socket trên laptop/sandbox; cờ
-này không bật chế độ no-huge. Có thể đổi bằng `HUGEPAGE_MB` và
-`HUGEPAGE_MOUNT`.
+`make benchmark-e2e` mặc định kiểm tra hugepages trước khi chạy, bỏ
+`--no-huge` và truyền `--huge-dir /mnt/huge` cho DPDK. Benchmark vẫn dùng
+`--in-memory` để tránh DPDK multiprocess socket trên laptop/sandbox; cờ này
+không bật chế độ no-huge. Có thể đổi bằng `HUGEPAGE_MB` và `HUGEPAGE_MOUNT`.
 
 E2E benchmark mặc định chạy 2 warmup runs, 5 measured runs và ghi median run
 vào `reports/e2e_benchmark_results.csv`. PCAP benchmark mặc định được sinh lại
@@ -62,8 +60,7 @@ PMD. Tỉ lệ này tạo khoảng hai packet cho mỗi flow, phù hợp kiểu 
 100k flow thường dùng. Có thể chạy nhanh hơn khi dev bằng
 `E2E_WARMUP_RUNS=0 E2E_RUNS=1 make benchmark-e2e`. Các profile fixed-worker
 dùng `--fixed-workers` để tắt runtime scaling và dispatch flow trực tiếp bằng
-hash canonical key; profile dynamic-scale vẫn dùng owner-map để giữ flow
-ownership khi active worker count thay đổi.
+hash canonical key.
 Khi bật `infinite_rx=1`, script tự truyền `--rx-mbufs` đủ lớn cho PCAP PMD;
 có thể override bằng `PCAP_RX_MBUFS` hoặc `MQ_RX_MBUFS`.
 Profile multi-RX mặc định dùng `MQ_DISPATCHERS=2`, sinh các PCAP shard riêng
@@ -72,20 +69,6 @@ và truyền nhiều `rx_pcap` vào PCAP PMD. Profile này bật
 `infinite_rx=1`, giữ cardinality ở 100k flow. Với dataset mặc định, script tự
 sinh lại shard để tránh dùng nhầm PCAP cũ không đủ packet; nếu tự truyền
 `MQ_PCAP_PREFIX`, đặt `MQ_REGENERATE=1` khi đổi số shard hoặc kích thước.
-
-## Chạy synthetic pipeline
-
-Ví dụ bốn worker, một triệu packet, 100.000 flow hai chiều:
-
-```bash
-XDG_RUNTIME_DIR=/tmp ./build/flowtable \
-  -l 0-4 --no-huge --in-memory --no-pci --no-telemetry -- \
-  --mode synthetic --workers 4 --packets 1000000 --flows 100000 \
-  --flow-capacity 32768
-```
-
-`--no-huge` chỉ phù hợp để phát triển. Khi chạy production, bỏ cờ này, cấu hình
-hugepages và dùng EAL arguments tương ứng máy chủ.
 
 ## Chạy với PCAP PMD
 
@@ -126,10 +109,15 @@ owner không bị đổi worker khi active worker count thay đổi.
 - `SIGHUP`: reload file `--rules` cho flow mới; flow cũ giữ action đã cache
 - `--stats-interval N`: in live stats mỗi `N` giây
 - `--dashboard`: đổi output interval thành dashboard realtime ANSI; nếu chưa
-  truyền `--stats-interval` thì interval mặc định là 1 giây
+  truyền `--stats-interval` thì interval mặc định là 1 giây. Dashboard có
+  graph ASCII cho Active Flow, Throughput và Packet Drop.
 - `--cli`: bật CLI terminal trong ethdev mode với `show statistics`,
-  `show flow`, `show worker`, `show worker N`, `show traffic`,
-  `show dashboard`, `rules`, `reload`, `scale up`, `scale down`, `quit`.
+  `show benchmark`, `show flow`, `show worker`, `show worker N`,
+  `show traffic`, `show dashboard`, `rules`, `reload`, `scale up`,
+  `scale down`, `quit`.
+  `show benchmark` hiển thị elapsed time, interval/average PPS,
+  flow-create-rate và packet drops theo thời gian thực. Khi PCAP PMD bật
+  `infinite_rx=1`, lệnh này dùng được như một màn hình benchmark live.
   `show worker N` hiển thị riêng một worker core, gồm queue/lcore/socket,
   packet/byte/drop, flow lifecycle, sáu traffic classes
   `HTTP/HTTPS/DNS/TCP/UDP/OTHER` và direction counters.
@@ -138,20 +126,23 @@ Ví dụ bật CLI realtime với PCAP PMD:
 
 ```bash
 sudo ./build/flowtable \
-  -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap' -- \
+  -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap,infinite_rx=1' -- \
   --mode ethdev --port 0 --workers 4 --max-workers 4 --packets 0 --cli
+```
+
+Lệnh ngắn hơn, tự kiểm tra hugepages và tự sinh PCAP nếu thiếu:
+
+```bash
+scripts/run_cli_pcap.sh
 ```
 
 Ví dụ bật dashboard realtime:
 
 ```bash
 sudo ./build/flowtable \
-  -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap' -- \
+  -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap,infinite_rx=1' -- \
   --mode ethdev --port 0 --workers 4 --packets 0 --dashboard
 ```
-
-Synthetic mode có thể tự scale-up bằng `--scale-interval N`, hữu ích cho smoke
-test dynamic scaling có new-flow sau thời điểm scale.
 
 ## Rule và xác định hướng
 
@@ -197,9 +188,12 @@ src/config.c   CLI/runtime config parser
 src/packet.c   Ethernet/VLAN/IPv4/TCP/UDP parser và flow normalization
 src/flow.c     Per-worker flow table, lifecycle counters và aging
 src/rule.c     SPI rule loader, precedence, action và traffic classifier
-src/pipeline.c RX/dispatcher/worker orchestration và runtime control
-src/stats.c    Live CLI/dashboard/reporting counters
-bench/         Benchmark scale theo core
+src/port.c     Ethdev/PCAP PMD port and queue setup
+src/dispatcher.c RX burst, parse, canonical hash and ring enqueue
+src/worker.c   Worker loop, flow lookup, SPI cache, action counters
+src/control.c  Signals, runtime CLI and rule reload control
+src/pipeline.c Ethdev orchestration, lcore launch and cleanup
+src/stats.c    Live CLI/dashboard/reporting counters and graphs
 tests/         Unit test, test data và workbook test cases
 config/        SPI rules và direction strategies
 scripts/       Tạo workbook và chạy benchmark
@@ -211,6 +205,5 @@ reports/       Kết quả benchmark đo trên máy hiện tại
 
 - Build DPDK 25.11.1: đạt
 - Unit tests: 127/127 đạt
-- Synthetic pipeline: 1.000.000/1.000.000 packet xử lý, 100.000 active flow
 - Ethdev/PCAP path: smoke-test 10/10 VLAN/TCP packet, một bidirectional flow;
   NIC vật lý và line-rate vẫn cần test trên server đích
