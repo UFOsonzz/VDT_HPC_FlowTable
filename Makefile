@@ -11,20 +11,34 @@ LDFLAGS += -pthread
 LDLIBS += $(DPDK_LIBS)
 
 BUILD_DIR := build
-TARGET := $(BUILD_DIR)/flowtable
-
 CORE_SOURCES := src/config.c src/flow.c src/packet.c src/rule.c
 PIPELINE_SOURCES := src/pipeline.c
 
-.PHONY: all clean
+.PHONY: all clean test benchmark workbook
 
-all: $(TARGET)
+all: $(BUILD_DIR)/flowtable $(BUILD_DIR)/test_flowtable $(BUILD_DIR)/flowtable_benchmark
 
 $(BUILD_DIR):
-	mkdir -p $(BUILD_DIR)
+	mkdir -p $@
 
-$(TARGET): $(CORE_SOURCES) $(PIPELINE_SOURCES) src/main.c | $(BUILD_DIR)
+$(BUILD_DIR)/flowtable: $(CORE_SOURCES) $(PIPELINE_SOURCES) src/main.c | $(BUILD_DIR)
 	$(CC) $(CPPFLAGS) $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS) -o $@
+
+$(BUILD_DIR)/test_flowtable: $(CORE_SOURCES) tests/test_flowtable.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS) -o $@
+
+$(BUILD_DIR)/flowtable_benchmark: $(CORE_SOURCES) bench/benchmark.c | $(BUILD_DIR)
+	$(CC) $(CPPFLAGS) $(CFLAGS) $^ $(LDFLAGS) $(LDLIBS) -o $@
+
+test: $(BUILD_DIR)/test_flowtable
+	XDG_RUNTIME_DIR=/tmp ./$(BUILD_DIR)/test_flowtable \
+		-l 0 --no-huge --in-memory --no-pci --no-telemetry
+
+benchmark: $(BUILD_DIR)/flowtable_benchmark
+	./scripts/run_benchmark.sh
+
+workbook:
+	python3 scripts/generate_test_workbook.py
 
 clean:
 	rm -rf $(BUILD_DIR)

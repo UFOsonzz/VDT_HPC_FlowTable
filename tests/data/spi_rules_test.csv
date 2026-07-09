@@ -1,0 +1,5 @@
+precedence,rule_name,group,dst_prefix,dst_ip,dst_port,protocol,src_prefix,src_ip,src_port,action
+10,YOUTUBE_ALLOW,video,142.250.0.0/15,NA,443,tcp,NA,NA,any,FORWARD
+20,SSH_BLOCK,security,NA,NA,22,tcp,NA,NA,any,DROP
+30,DNS_COUNT,dns,NA,NA,53,udp,NA,NA,any,COUNT
+65535,DEFAULT,default,NA,NA,any,any,NA,NA,any,FORWARD
