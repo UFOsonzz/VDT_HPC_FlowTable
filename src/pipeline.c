@@ -225,6 +225,20 @@ static int owner_table_get_or_create(ft_owner_table_t *table,
     return 0;
 }
 
+static int select_worker(ft_owner_table_t *table,
+                         const ft_flow_key_t *key,
+                         uint16_t active_worker_count,
+                         bool use_owner_map,
+                         uint16_t *worker_id) {
+    if (key == NULL || active_worker_count == 0 || worker_id == NULL)
+        return -1;
+    if (use_owner_map)
+        return owner_table_get_or_create(table, key, active_worker_count,
+                                         worker_id, NULL);
+    *worker_id = (uint16_t)(ft_flow_hash(key) % active_worker_count);
+    return 0;
+}
+
 static void publish_stats(ft_worker_t *worker) {
     atomic_store_explicit(&worker->published.packets,
                           worker->local.packets, memory_order_relaxed);
@@ -605,18 +619,23 @@ static void apply_control_events(const ft_app_config_t *config,
     }
     if (scale_up_signal) {
         scale_up_signal = 0;
-        request_scale(scale_delta, 1);
+        if (!config->fixed_workers)
+            request_scale(scale_delta, 1);
     }
     if (scale_down_signal) {
         scale_down_signal = 0;
-        request_scale(scale_delta, -1);
+        if (!config->fixed_workers)
+            request_scale(scale_delta, -1);
     }
     if (atomic_exchange_explicit(reload_requested, false,
                                  memory_order_acq_rel)) {
         if (rule_store_reload(rule_store, config->rule_path) != 0)
             fprintf(stderr, "rule reload failed: %s\n", config->rule_path);
     }
-    delta = atomic_exchange_explicit(scale_delta, 0, memory_order_acq_rel);
+    if (config->fixed_workers)
+        atomic_store_explicit(scale_delta, 0, memory_order_release);
+    delta = config->fixed_workers ?
+        0 : atomic_exchange_explicit(scale_delta, 0, memory_order_acq_rel);
     if (delta != 0) {
         uint16_t previous;
 
@@ -1015,6 +1034,7 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
     uint64_t next_stats = 0;
     uint64_t packet_timestamp;
     uint64_t dispatched = 0;
+    bool use_owner_map;
     bool launch_ok = true;
     int result = -1;
 
@@ -1022,6 +1042,8 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
     memset(dispatch_queues, 0, sizeof(dispatch_queues));
     atomic_init(&active_worker_count, config->worker_count);
     dispatch_burst = dispatch_burst_size(config);
+    use_owner_map = !config->fixed_workers &&
+                    config->scale_interval_packets != 0;
     if (ft_direction_config_load(&directions, config->direction_path) != 0 ||
         rule_store_init(&rule_store, config->rule_path) != 0) {
         fprintf(stderr, "Cannot load direction or SPI rule configuration\n");
@@ -1038,13 +1060,15 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
                 launched_workers, available);
         goto cleanup_rules;
     }
-    owner_capacity = config->flow_capacity_per_worker * launched_workers * 2U;
-    if (owner_capacity < config->synthetic_flow_count * 2U)
-        owner_capacity = config->synthetic_flow_count * 2U;
-    if (owner_table_create(&owners, "ft_owner_synthetic", owner_capacity,
-                           rte_socket_id()) != 0) {
-        fprintf(stderr, "Cannot create dispatcher owner table\n");
-        goto cleanup_rules;
+    if (use_owner_map) {
+        owner_capacity = config->flow_capacity_per_worker * launched_workers * 2U;
+        if (owner_capacity < config->synthetic_flow_count * 2U)
+            owner_capacity = config->synthetic_flow_count * 2U;
+        if (owner_table_create(&owners, "ft_owner_synthetic", owner_capacity,
+                               rte_socket_id()) != 0) {
+            fprintf(stderr, "Cannot create dispatcher owner table\n");
+            goto cleanup_rules;
+        }
     }
     memset(workers, 0, sizeof(workers));
     for (uint16_t i = 0; i < launched_workers; i++) {
@@ -1080,11 +1104,10 @@ int ft_pipeline_run_synthetic(const ft_app_config_t *config) {
         generate_synthetic_packet(i, config->synthetic_flow_count,
                                   packet_timestamp, &packet);
         ft_packet_normalize(&packet, &directions, &normalized);
-        if (owner_table_get_or_create(&owners, &normalized.key,
-                                      atomic_load_explicit(
-                                          &active_worker_count,
-                                          memory_order_acquire),
-                                      &worker_id, NULL) != 0)
+        if (select_worker(&owners, &normalized.key,
+                          atomic_load_explicit(&active_worker_count,
+                                               memory_order_acquire),
+                          use_owner_map, &worker_id) != 0)
             continue;
         item = dispatch_get_item(&workers[worker_id],
                                  &dispatch_queues[worker_id],
@@ -1239,6 +1262,7 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
     uint64_t end = start;
     uint64_t next_stats = 0;
     uint64_t dispatched = 0;
+    bool use_owner_map;
     bool launch_ok = true;
     int result = -1;
 
@@ -1247,6 +1271,7 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
     memset(dispatch_queues, 0, sizeof(dispatch_queues));
     atomic_init(&active_worker_count, config->worker_count);
     dispatch_burst = dispatch_burst_size(config);
+    use_owner_map = !config->fixed_workers;
     if (ft_direction_config_load(&directions, config->direction_path) != 0 ||
         rule_store_init(&rule_store, config->rule_path) != 0)
         return -1;
@@ -1264,11 +1289,13 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
         fprintf(stderr, "Cannot configure ethdev port %u\n", config->port_id);
         goto cleanup;
     }
-    owner_capacity = config->flow_capacity_per_worker * launched_workers * 2U;
-    if (owner_table_create(&owners, "ft_owner_ethdev", owner_capacity,
-                           rte_socket_id()) != 0) {
-        fprintf(stderr, "Cannot create dispatcher owner table\n");
-        goto cleanup;
+    if (use_owner_map) {
+        owner_capacity = config->flow_capacity_per_worker * launched_workers * 2U;
+        if (owner_table_create(&owners, "ft_owner_ethdev", owner_capacity,
+                               rte_socket_id()) != 0) {
+            fprintf(stderr, "Cannot create dispatcher owner table\n");
+            goto cleanup;
+        }
     }
     for (uint16_t i = 0; i < launched_workers; i++) {
         if (create_worker(&workers[i], i, lcore_ids[i], config,
@@ -1345,11 +1372,10 @@ int ft_pipeline_run_ethdev(const ft_app_config_t *config) {
             packet.ingress_port = config->port_id;
             packet.timestamp = rx_timestamp;
             ft_packet_normalize(&packet, &directions, &normalized);
-            if (owner_table_get_or_create(&owners, &normalized.key,
-                                          atomic_load_explicit(
-                                              &active_worker_count,
-                                              memory_order_acquire),
-                                          &worker_id, NULL) != 0) {
+            if (select_worker(&owners, &normalized.key,
+                              atomic_load_explicit(&active_worker_count,
+                                                   memory_order_acquire),
+                              use_owner_map, &worker_id) != 0) {
                 rte_pktmbuf_free(mbufs[i]);
                 continue;
             }

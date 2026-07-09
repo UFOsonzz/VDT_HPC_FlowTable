@@ -53,7 +53,10 @@ này không bật chế độ no-huge. Có thể đổi bằng `HUGEPAGE_MB` và
 E2E benchmark tự tạo `generated/spi_benchmark.pcap` nếu file chưa tồn tại.
 PCAP này được sinh từ `SPI_DPI_rule.xlsx` bằng
 `scripts/generate_spi_pcap.py`, mặc định `PCAP_FLOWS=100000` và
-`PCAP_PACKETS=200000`.
+`PCAP_PACKETS=200000`. Các profile fixed-worker dùng `--fixed-workers` để tắt
+runtime scaling và dispatch flow trực tiếp bằng hash canonical key; profile
+dynamic-scale vẫn dùng owner-map để giữ flow ownership khi active worker count
+thay đổi.
 
 ## Chạy synthetic pipeline
 

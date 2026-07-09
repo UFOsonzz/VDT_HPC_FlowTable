@@ -76,6 +76,7 @@ typedef struct {
     bool tx_enabled;
     bool cli_enabled;
     bool dashboard_enabled;
+    bool fixed_workers;
 } ft_app_config_t;
 
 int ft_pipeline_run_synthetic(const ft_app_config_t *config);

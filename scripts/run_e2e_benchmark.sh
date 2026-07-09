@@ -71,7 +71,8 @@ append_result synthetic-fixed-huge synthetic 1 1 200000 20000 \
     env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
         -l 0-1 --huge-dir "$mount_point" --in-memory --no-pci --no-telemetry -- \
         --mode synthetic --workers 1 --max-workers 1 \
-        --packets 200000 --flows 20000 --flow-capacity 32768 --ring-size 2048
+        --packets 200000 --flows 20000 --flow-capacity 32768 --ring-size 2048 \
+        --fixed-workers
 
 append_result synthetic-scale-huge synthetic 1 4 400000 100000 \
     env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
@@ -80,12 +81,12 @@ append_result synthetic-scale-huge synthetic 1 4 400000 100000 \
         --packets 400000 --flows 100000 --flow-capacity 131072 --ring-size 4096 \
         --scale-interval 100000
 
-append_result pcap-spi-huge ethdev 1 4 "$pcap_packets" "$pcap_flows" \
+append_result pcap-spi-4w-huge ethdev 4 4 "$pcap_packets" "$pcap_flows" \
     env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
         -l 0-4 --huge-dir "$mount_point" --in-memory --no-pci \
         --vdev "net_pcap0,rx_pcap=$pcap_file" --no-telemetry -- \
-        --mode ethdev --port 0 --workers 1 --max-workers 4 \
+        --mode ethdev --port 0 --workers 4 --max-workers 4 \
         --packets "$pcap_packets" --flow-capacity 131072 --ring-size 4096 \
-        --scale-interval 0
+        --scale-interval 0 --fixed-workers
 
 printf 'Wrote %s\n' "$output"

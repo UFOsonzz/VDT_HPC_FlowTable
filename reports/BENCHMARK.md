@@ -80,22 +80,25 @@ không mất gói. Worker-engine benchmark bên dưới tách khỏi dispatcher/
 Nguồn chính xác: `reports/e2e_benchmark_results.csv`.
 
 Các profile này chạy binary `build/flowtable`, vì vậy đo cả dispatcher,
-normalize, owner-map, ring, worker flow table, SPI/action cache và drain worker.
-`pcap-vlan` đi qua DPDK PCAP PMD, `rte_eth_rx_burst()` và parser mbuf thật.
+normalize, flow-affinity dispatch, ring, worker flow table, SPI/action cache và
+drain worker. PCAP profile đi qua DPDK PCAP PMD, `rte_eth_rx_burst()` và parser
+mbuf thật.
 
 | Profile | Mode | Workers | Packets | Processed | Dropped | Active flow | PPS |
 |---|---|---:|---:|---:|---:|---:|---:|
-| synthetic-fixed-huge | synthetic | 1/1 | 200,000 | 200,000 | 0 | 20,000 | 10.11 Mpps |
-| synthetic-scale-huge | synthetic | 1 -> 4 | 400,000 | 400,000 | 0 | 100,000 | 6.34 Mpps |
-| pcap-spi-huge | ethdev/PCAP PMD | 1/4 launched | 200,000 | 200,000 | 0 | 100,000 | 2.62 Mpps |
+| synthetic-fixed-huge | synthetic | 1/1 | 200,000 | 200,000 | 0 | 20,000 | 12.61 Mpps |
+| synthetic-scale-huge | synthetic | 1 -> 4 | 400,000 | 400,000 | 0 | 100,000 | 4.92 Mpps |
+| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 200,000 | 200,000 | 0 | 100,000 | 3.17 Mpps |
 
 `synthetic-scale-huge` bật logical dynamic scaling. Dispatcher dùng owner-map
 nên flow đã có owner vẫn đi về worker cũ; worker mới chỉ nhận flow mới sau thời
 điểm scale. PPS profile này không so trực tiếp với fixed profile vì số flow lớn
-hơn và có thêm owner-map/control overhead. `pcap-spi-huge` dùng PCAP Ethernet
+hơn và có thêm owner-map/control overhead. `pcap-spi-4w-huge` dùng PCAP Ethernet
 được sinh từ `SPI_DPI_rule.xlsx` qua `scripts/generate_spi_pcap.py`; profile
-này giữ một active worker để đo riêng chi phí PCAP PMD, parser, dispatcher,
-owner-map và một worker xử lý flow.
+`pcap-spi-4w-huge` chạy bốn active worker đúng yêu cầu multi-worker. Các
+profile fixed-worker dùng `--fixed-workers`, nên dispatcher chọn worker bằng
+hash canonical key trực tiếp; profile scale động vẫn dùng owner-map để flow cũ
+không bị đổi worker khi active worker count thay đổi.
 Fast path hiện gom work-item allocation/enqueue theo burst và worker trả
 work-item về mempool theo bulk, đồng thời timestamp RX được lấy theo burst thay
 vì từng packet.
