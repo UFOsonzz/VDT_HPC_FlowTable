@@ -75,6 +75,7 @@ typedef struct {
     uint16_t port_id;
     bool tx_enabled;
     bool cli_enabled;
+    bool dashboard_enabled;
 } ft_app_config_t;
 
 int ft_pipeline_run_synthetic(const ft_app_config_t *config);

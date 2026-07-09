@@ -23,7 +23,8 @@ static void usage(const char *program) {
            "  --directions PATH  Direction strategy CSV\n"
            "  --port N           Ethdev/PCAP PMD port (default: 0)\n"
            "  --tx               Transmit FORWARD packets on per-worker TX queues\n"
-           "  --cli              Enable terminal CLI for ethdev mode\n",
+           "  --cli              Enable terminal CLI for ethdev mode\n"
+           "  --dashboard        Print ANSI realtime dashboard; default interval 1s\n",
            program);
 }
 
@@ -60,6 +61,7 @@ int main(int argc, char **argv) {
         {"port", required_argument, NULL, 'P'},
         {"tx", no_argument, NULL, 'T'},
         {"cli", no_argument, NULL, 'C'},
+        {"dashboard", no_argument, NULL, 'B'},
         {"help", no_argument, NULL, 'h'},
         {NULL, 0, NULL, 0},
     };
@@ -73,7 +75,7 @@ int main(int argc, char **argv) {
     argc -= consumed;
     argv += consumed;
     optind = 1;
-    while ((option = getopt_long(argc, argv, "m:w:W:p:f:c:r:t:s:S:R:D:P:TCh",
+    while ((option = getopt_long(argc, argv, "m:w:W:p:f:c:r:t:s:S:R:D:P:TCBh",
                                  options, NULL)) != -1) {
         switch (option) {
         case 'm':
@@ -122,6 +124,9 @@ int main(int argc, char **argv) {
         case 'C':
             config.cli_enabled = true;
             break;
+        case 'B':
+            config.dashboard_enabled = true;
+            break;
         case 'h':
         default:
             usage(argv[0]);
@@ -131,6 +136,8 @@ int main(int argc, char **argv) {
     }
     if (config.max_worker_count == 0)
         config.max_worker_count = config.worker_count;
+    if (config.dashboard_enabled && config.stats_interval_seconds == 0)
+        config.stats_interval_seconds = 1;
     if (config.synthetic_flow_count == 0 ||
         config.worker_count == 0 ||
         config.max_worker_count == 0 ||

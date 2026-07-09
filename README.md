@@ -80,9 +80,28 @@ owner không bị đổi worker khi active worker count thay đổi.
 - `SIGUSR1`: tăng active worker count thêm một, tối đa `--max-workers`
 - `SIGUSR2`: giảm active worker count thêm một, tối thiểu một worker
 - `SIGHUP`: reload file `--rules` cho flow mới; flow cũ giữ action đã cache
-- `--stats-interval N`: in live terminal dashboard mỗi `N` giây
-- `--cli`: bật CLI terminal trong ethdev mode với `show`, `rules`, `reload`,
-  `scale up`, `scale down`, `quit`
+- `--stats-interval N`: in live stats mỗi `N` giây
+- `--dashboard`: đổi output interval thành dashboard realtime ANSI; nếu chưa
+  truyền `--stats-interval` thì interval mặc định là 1 giây
+- `--cli`: bật CLI terminal trong ethdev mode với `show statistics`,
+  `show flow`, `show worker`, `show traffic`, `show dashboard`, `rules`,
+  `reload`, `scale up`, `scale down`, `quit`
+
+Ví dụ bật CLI realtime với PCAP PMD:
+
+```bash
+sudo ./build/flowtable \
+  -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap' -- \
+  --mode ethdev --port 0 --workers 4 --max-workers 4 --packets 0 --cli
+```
+
+Ví dụ bật dashboard realtime:
+
+```bash
+sudo ./build/flowtable \
+  -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap' -- \
+  --mode ethdev --port 0 --workers 4 --packets 0 --dashboard
+```
 
 Synthetic mode có thể tự scale-up bằng `--scale-interval N`, hữu ích cho smoke
 test dynamic scaling có new-flow sau thời điểm scale.
