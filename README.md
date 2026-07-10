@@ -55,10 +55,12 @@ không bật chế độ no-huge. Có thể đổi bằng `HUGEPAGE_MB` và `HUG
 E2E benchmark mặc định chạy 2 warmup runs, 5 measured runs và ghi median run
 vào `reports/e2e_benchmark_results.csv`. PCAP benchmark mặc định được sinh lại
 từ `SPI_DPI_rule.xlsx` bằng `scripts/generate_spi_pcap.py`, với
-`PCAP_FLOWS=100000`, `PCAP_PACKETS=200000` và `PCAP_INFINITE_RX=1` trên PCAP
-PMD. Tỉ lệ này tạo khoảng hai packet cho mỗi flow, phù hợp kiểu benchmark
-100k flow thường dùng. Có thể chạy nhanh hơn khi dev bằng
-`E2E_WARMUP_RUNS=0 E2E_RUNS=1 make benchmark-e2e`. Các profile fixed-worker
+`PCAP_FLOWS=100000`, `PCAP_PACKETS=200000`, `BENCH_PACKETS=2000000` và
+`PCAP_INFINITE_RX=1` trên PCAP PMD. File PCAP gốc vẫn có 200k packet để giữ
+kích thước dữ liệu vừa phải; cờ `--packets` của ứng dụng mặc định là 2M packet
+và dựa vào PCAP PMD replay để chạy nhiều vòng trên cùng 100k flow. Có thể chạy
+nhanh hơn khi dev bằng `E2E_WARMUP_RUNS=0 E2E_RUNS=1 make benchmark-e2e`. Các
+profile fixed-worker
 dùng `--fixed-workers` để tắt runtime scaling và dispatch flow trực tiếp bằng
 hash canonical key.
 Khi bật `infinite_rx=1`, script tự truyền `--rx-mbufs` đủ lớn cho PCAP PMD;
@@ -91,7 +93,7 @@ hai dispatcher và bốn worker:
 sudo ./build/flowtable \
   -l 0-6 \
   --vdev 'net_pcap0,rx_pcap=generated/spi_benchmark_mq_q0.pcap,rx_pcap=generated/spi_benchmark_mq_q1.pcap' -- \
-  --mode ethdev --port 0 --workers 4 --max-workers 4 --packets 200000 \
+  --mode ethdev --port 0 --workers 4 --max-workers 4 --packets 2000000 \
   --rx-queues 2 --dispatchers 2 --fixed-workers
 ```
 

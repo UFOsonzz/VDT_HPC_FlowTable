@@ -11,7 +11,8 @@ Ngày đo gần nhất: 2026-07-10.
 - Chế độ benchmark hiện tại: hugepages 2MB, 512 pages, `--huge-dir /mnt/huge`,
   `--in-memory`, `--no-pci`
 - E2E benchmark: 2 warmup runs bị bỏ qua, 5 measured runs, lấy median PPS
-- Workload: PCAP PMD, `infinite_rx=1`, 100.000 flow / 200.000 packet
+- Workload: PCAP PMD, `infinite_rx=1`; PCAP gốc 100.000 flow /
+  200.000 packet, ứng dụng xử lý 2.000.000 packet nhờ replay
 - Dataset rule: `config/spi_rules.csv`
 
 Đây là môi trường laptop, không phải server data-plane chuyên dụng. Turbo,
@@ -50,29 +51,35 @@ Nguồn chính xác: `reports/e2e_benchmark_results.csv`. CSV lưu
 flow-create-rate và lcore allocation. PPS trong bảng là tổng thông lượng packet
 đã xử lý của toàn pipeline ở median run, không phải trung bình mỗi worker.
 
-Workload PCAP giữ tỉ lệ benchmark phổ biến: 100.000 flow và khoảng hai packet
-cho mỗi flow. Quy trình chạy warmup process trước và lấy median của 5 lần đo
-để giữ đủ pipeline thật: PCAP PMD với `infinite_rx=1`, parser, direction
-resolver, SPI rule/cache, dispatcher, ring và worker flow table.
+Workload PCAP giữ tỉ lệ benchmark phổ biến ở file gốc: 100.000 flow và
+khoảng hai packet cho mỗi flow. Bài đo hiện tại truyền `--packets 2000000`
+cho ứng dụng và bật `infinite_rx=1`, vì vậy PCAP PMD replay file gốc nhiều
+vòng để tạo measured window dài hơn trong khi cardinality vẫn giữ ở
+100.000 flow. Quy trình chạy warmup process trước và lấy median của 5 lần đo
+để giữ đủ pipeline thật: PCAP PMD, parser, direction resolver, SPI rule/cache,
+dispatcher, ring và worker flow table.
 
 | Profile | Mode | Workers | RXQ/Dispatchers | Warmup/Measured | Packets | Processed | Dropped | Active flow | PPS |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 6.43 Mpps |
-| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 200,000 | 200,000 | 0 | 100,000 | 9.57 Mpps |
+| pcap-spi-4w-huge | ethdev/PCAP PMD | 4/4 | 1/1 | 2/5 | 2,000,000 | 2,000,000 | 0 | 100,000 | 6.75 Mpps |
+| pcap-spi-mq-2d4w-huge | ethdev/PCAP PMD shards | 4/4 | 2/2 | 2/5 | 2,000,000 | 2,000,000 | 0 | 100,000 | 10.26 Mpps |
 
 Các trường bắt buộc theo mục "3. Bài test & kết quả" trong docx:
 
 | Profile | Throughput | Max active flows | Flow create rate | Flow delete/timeout rate | CPU core usage |
 |---|---:|---:|---:|---:|---|
-| pcap-spi-4w-huge | 6.43 Mpps | 100,000 | 3.22 Mflows/s | 0/s | 5 lcores allocated, 62.50% of 8 logical CPUs |
-| pcap-spi-mq-2d4w-huge | 9.57 Mpps | 100,000 | 4.79 Mflows/s | 0/s | 7 lcores allocated, 87.50% of 8 logical CPUs |
+| pcap-spi-4w-huge | 6.75 Mpps | 100,000 | 0.34 Mflows/s | 0/s | 5 lcores allocated, 62.50% of 8 logical CPUs |
+| pcap-spi-mq-2d4w-huge | 10.26 Mpps | 100,000 | 0.51 Mflows/s | 0/s | 7 lcores allocated, 87.50% of 8 logical CPUs |
 
 CPU ở bảng trên là mức core/lcore được cấp phát cho EAL command, không phải
 OS-sampled utilization từ `pidstat`/`perf`. DPDK poll-mode thường giữ lcore
 active trong measured window; nếu cần CPU utilization kiểu hệ điều hành, lần
 benchmark trên server nên thu thêm `pidstat -t` hoặc `perf stat` song song.
-Flow delete/timeout bằng 0 vì workload 200k packet kết thúc trước timeout và
-không có aging pressure test trong run hiện tại.
+Flow create rate trong CSV là `created_flows / seconds` của toàn median run.
+Vì run 2.000.000 packet replay PCAP gốc, 100.000 flow chỉ được tạo ở vòng đầu;
+các vòng sau chủ yếu đo lookup/cache/action trên flow đã tồn tại. Flow
+delete/timeout bằng 0 vì measured window vẫn kết thúc trước timeout và không có
+aging pressure test trong run hiện tại.
 
 `pcap-spi-4w-huge` dùng PCAP Ethernet được sinh từ `SPI_DPI_rule.xlsx` qua
 `scripts/generate_spi_pcap.py`. Profile `pcap-spi-mq-2d4w-huge` dùng hai RX

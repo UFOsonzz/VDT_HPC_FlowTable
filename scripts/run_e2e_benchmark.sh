@@ -6,12 +6,14 @@ mount_point="${HUGEPAGE_MOUNT:-/mnt/huge}"
 pcap_file="${PCAP_FILE:-generated/spi_benchmark.pcap}"
 pcap_packets="${PCAP_PACKETS:-200000}"
 pcap_flows="${PCAP_FLOWS:-100000}"
+bench_packets="${BENCH_PACKETS:-2000000}"
 pcap_regenerate="${PCAP_REGENERATE:-}"
 pcap_infinite_rx="${PCAP_INFINITE_RX:-1}"
 pcap_rx_mbufs="${PCAP_RX_MBUFS:-}"
 mq_dispatchers="${MQ_DISPATCHERS:-2}"
 mq_workers="${MQ_WORKERS:-4}"
-mq_packets="${MQ_PACKETS:-$pcap_packets}"
+mq_pcap_packets="${MQ_PCAP_PACKETS:-$pcap_packets}"
+mq_packets="${MQ_PACKETS:-$bench_packets}"
 mq_flows="${MQ_FLOWS:-$pcap_flows}"
 mq_pcap_prefix="${MQ_PCAP_PREFIX:-generated/spi_benchmark_mq}"
 mq_regenerate="${MQ_REGENERATE:-}"
@@ -44,18 +46,20 @@ is_uint() {
 }
 
 if ! is_uint "$pcap_packets" || ! is_uint "$pcap_flows" ||
+    ! is_uint "$bench_packets" ||
     ! is_uint "$pcap_infinite_rx" ||
     ! is_uint "$mq_dispatchers" || ! is_uint "$mq_workers" ||
-    ! is_uint "$mq_packets" || ! is_uint "$mq_flows" ||
+    ! is_uint "$mq_pcap_packets" || ! is_uint "$mq_packets" ||
+    ! is_uint "$mq_flows" ||
     ! is_uint "$warmup_runs" || ! is_uint "$measure_runs" ||
     ! is_uint "$cooldown_seconds"; then
     echo "Benchmark count settings must be unsigned integers" >&2
     exit 1
 fi
 
-if ((pcap_packets <= 0 || pcap_flows <= 0 ||
+if ((pcap_packets <= 0 || pcap_flows <= 0 || bench_packets <= 0 ||
      mq_dispatchers <= 0 || mq_workers <= 0 ||
-     mq_packets <= 0 || mq_flows <= 0 ||
+     mq_pcap_packets <= 0 || mq_packets <= 0 || mq_flows <= 0 ||
      measure_runs <= 0)); then
     echo "Packet, flow, worker, dispatcher and measured run counts must be positive" >&2
     exit 1
@@ -64,11 +68,16 @@ if ((pcap_infinite_rx > 1)); then
     echo "PCAP_INFINITE_RX must be 0 or 1" >&2
     exit 1
 fi
+if ((pcap_infinite_rx == 0 &&
+     (bench_packets > pcap_packets || mq_packets > mq_pcap_packets))); then
+    echo "Packet limit exceeds PCAP size; enable PCAP_INFINITE_RX=1 or increase PCAP_PACKETS/MQ_PCAP_PACKETS" >&2
+    exit 1
+fi
 if [[ -z "$pcap_rx_mbufs" ]]; then
     pcap_rx_mbufs=$((pcap_packets + 8192))
 fi
 if [[ -z "$mq_rx_mbufs" ]]; then
-    mq_rx_mbufs=$((mq_packets + 8192))
+    mq_rx_mbufs=$((mq_pcap_packets + 8192))
 fi
 if ! is_uint "$pcap_rx_mbufs" || ! is_uint "$mq_rx_mbufs"; then
     echo "PCAP_RX_MBUFS and MQ_RX_MBUFS must be unsigned integers" >&2
@@ -213,8 +222,8 @@ append_result() {
 
 generate_mq_pcaps() {
     local vdev="net_pcap0"
-    local base_packets=$((mq_packets / mq_dispatchers))
-    local packet_remainder=$((mq_packets % mq_dispatchers))
+    local base_packets=$((mq_pcap_packets / mq_dispatchers))
+    local packet_remainder=$((mq_pcap_packets % mq_dispatchers))
     local base_flows=$((mq_flows / mq_dispatchers))
     local flow_remainder=$((mq_flows % mq_dispatchers))
     local flow_offset=0
@@ -251,12 +260,12 @@ if ((pcap_infinite_rx == 1)); then
 fi
 
 append_result pcap-spi-4w-huge ethdev 4 4 1 1 5 \
-    "$pcap_packets" "$pcap_flows" \
+    "$bench_packets" "$pcap_flows" \
     env XDG_RUNTIME_DIR=/tmp ./build/flowtable \
         -l 0-4 --huge-dir "$mount_point" --in-memory --no-pci \
         --vdev "$pcap_vdev" --no-telemetry -- \
         --mode ethdev --port 0 --workers 4 --max-workers 4 \
-        --packets "$pcap_packets" --rx-mbufs "$pcap_rx_mbufs" \
+        --packets "$bench_packets" --rx-mbufs "$pcap_rx_mbufs" \
         --flow-capacity 131072 --ring-size 4096 \
         --fixed-workers
 
