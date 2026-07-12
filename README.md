@@ -1,180 +1,248 @@
 # FlowTable DPDK
 
-FlowTable là data plane IPv4 hiệu năng cao dùng DPDK, được xây dựng từ
-`MiniProject_HPC_Flowtable.docx` và sheet `SPI_rule` trong
-`SPI_DPI_rule.xlsx`.
+FlowTable là mini project data plane IPv4 dùng DPDK để nhận packet từ NIC hoặc
+PCAP PMD, chuẩn hóa flow hai chiều, phân tải flow theo worker, áp dụng SPI rule
+và xuất thống kê runtime. Repo này được triển khai theo yêu cầu trong
+`MiniProject_HPC_Flowtable.docx` và rule workbook `SPI_DPI_rule.xlsx`.
 
-Thiết kế dùng pipeline và ownership theo core:
+## Kiến Trúc
 
-1. RX từ NIC hoặc PCAP PMD nhận packet theo burst.
-2. Parser lấy Ethernet, VLAN tùy chọn, IPv4, TCP/UDP.
-3. Direction Resolver xác định tenant và uplink/downlink từ metadata, ingress
-   port, VLAN hoặc IP subnet.
-4. Five-tuple được chuẩn hóa thành khóa client/server hai chiều.
-5. Symmetric hash đưa cả hai chiều vào cùng worker. Với multi-dispatcher, mỗi
-   dispatcher có một SPSC ring riêng tới từng worker để tránh shared enqueue
-   lock.
-6. Worker sở hữu riêng một shard `rte_hash`, flow state, rule cache, aging và
-   counters; không có lock trên fast path.
-7. SPI chỉ match khi tạo flow. Rule/action được lưu trong flow entry và tái sử
-   dụng cho mọi packet uplink/downlink.
+Đường xử lý chính là pipeline chạy song song theo core:
 
-## Tài liệu
+1. DPDK ethdev hoặc PCAP PMD nhận packet theo burst.
+2. Dispatcher parse Ethernet, VLAN tùy chọn, IPv4, TCP/UDP.
+3. Direction resolver xác định tenant và uplink/downlink từ hint, ingress port,
+   VLAN hoặc subnet.
+4. Packet được chuẩn hóa thành canonical five-tuple để hai chiều của cùng flow
+   có cùng key.
+5. Dispatcher chọn worker bằng hash. Fixed-worker mode dùng hash trực tiếp;
+   dynamic mode dùng owner-map để hỗ trợ `scale up/down`.
+6. Worker sở hữu riêng flow table shard, SPI action cache, aging và counters.
+7. CLI/dashboard đọc counters để hiển thị active flow, throughput, drop, worker
+   detail, traffic class và rule hit.
 
-- [SRS](docs/01_SRS.md)
-- [High-level design](docs/02_HIGH_LEVEL_DESIGN.md)
-- [Flow diagrams](docs/03_FLOW_DIAGRAMS.md)
-- [Software detailed design](docs/04_SOFTWARE_DESIGN.md)
-- [Kiến trúc, code guide và hướng cải tiến](docs/05_ARCHITECTURE_CODE_GUIDE.md)
-- [Kết quả kiểm thử và benchmark](reports/BENCHMARK.md)
-- [Đối chiếu yêu cầu docx](reports/PROJECT_REQUIREMENT_REVIEW.md)
-- [Design/data-flow/sequence/activity diagrams](reports/DESIGN_DIAGRAMS.md)
-- [Test cases Excel](tests/FlowTable_Test_Cases.xlsx) gồm đúng hai sheet:
-  `Functional Test` và `Performance Test`
+Multi-dispatcher/multi-RX chỉ bật trong fixed-worker mode. Khi dùng nhiều
+dispatcher, mỗi dispatcher có SPSC ring riêng tới từng worker để tránh shared
+enqueue lock.
 
-## Yêu cầu build
+## Cấu Trúc Hiện Tại
 
-- Linux, GCC/Clang, GNU Make
+```text
+.
+├── Makefile
+├── MiniProject_HPC_Flowtable.docx
+├── SPI_DPI_rule.xlsx
+├── config/
+│   ├── direction_rules.csv
+│   └── spi_rules.csv
+├── docs/
+│   ├── report.tex
+│   ├── report.pdf
+│   ├── dashboard_realtime.png
+│   ├── worker_realtime.png
+│   └── beamer/theme assets
+├── include/
+│   ├── ft_common.h
+│   ├── ft_config.h
+│   ├── ft_flow.h
+│   ├── ft_packet.h
+│   ├── ft_pipeline.h
+│   ├── ft_rule.h
+│   └── ft_stats.h
+├── reports/
+│   ├── BENCHMARK.md
+│   └── e2e_benchmark_results.csv
+├── scripts/
+│   ├── generate_spi_pcap.py
+│   ├── generate_test_workbook.py
+│   ├── run_cli_pcap.sh
+│   ├── run_e2e_benchmark.sh
+│   ├── run_e2e_benchmark_huge.sh
+│   └── setup_hugepages_if_needed.sh
+├── src/
+│   ├── config.c
+│   ├── control.c
+│   ├── dispatcher.c
+│   ├── flow.c
+│   ├── main.c
+│   ├── packet.c
+│   ├── pipeline.c
+│   ├── pipeline_internal.h
+│   ├── port.c
+│   ├── rule.c
+│   ├── stats.c
+│   └── worker.c
+└── tests/
+    ├── FlowTable_Test_Cases.xlsx
+    ├── data/spi_rules_test.csv
+    └── test_flowtable.c
+```
+
+`generated/` chứa PCAP sinh tự động cho benchmark và có thể tạo lại từ script.
+`build/` là output build local.
+
+## Build Và Test
+
+Yêu cầu môi trường:
+
+- Linux
+- GCC hoặc Clang
+- GNU Make
 - DPDK có `pkg-config` package `libdpdk`
-- Production: hugepages và NIC/PMD phù hợp
+- Python 3 cho các script sinh PCAP/workbook
 
-Build và test:
+Build chương trình và unit test:
 
 ```bash
 make -j
 make test
+```
+
+`make test` chạy test binary qua DPDK EAL với `--no-huge --in-memory --no-pci`,
+phù hợp để kiểm tra logic parser, flow table, rule, direction và worker
+distribution mà không cần setup hugepages.
+
+## Hugepages
+
+Benchmark E2E không dùng `--no-huge`, nên cần chuẩn bị hugepages trước:
+
+```bash
 sudo scripts/setup_hugepages_if_needed.sh --mb 1024 --mount-point /mnt/huge
+```
+
+Script benchmark mặc định kiểm tra hugepages bằng `--check-only`. Nếu hugepages
+chưa sẵn sàng, benchmark sẽ dừng và in lệnh setup cần chạy.
+
+Có thể đổi mount point hoặc tổng dung lượng bằng biến môi trường:
+
+```bash
+HUGEPAGE_MB=1024 HUGEPAGE_MOUNT=/mnt/huge make benchmark-e2e
+```
+
+## Benchmark E2E
+
+Chạy benchmark chính:
+
+```bash
 make benchmark-e2e
 ```
 
-`make benchmark-e2e` mặc định kiểm tra hugepages trước khi chạy, bỏ
-`--no-huge` và truyền `--huge-dir /mnt/huge` cho DPDK. Benchmark vẫn dùng
-`--in-memory` để tránh DPDK multiprocess socket trên laptop/sandbox; cờ này
-không bật chế độ no-huge. Có thể đổi bằng `HUGEPAGE_MB` và `HUGEPAGE_MOUNT`.
+Benchmark được điều khiển bởi `scripts/run_e2e_benchmark.sh`:
 
-E2E benchmark mặc định chạy 2 warmup runs, 5 measured runs và ghi median run
-vào `reports/e2e_benchmark_results.csv`. PCAP benchmark mặc định được sinh lại
-từ `SPI_DPI_rule.xlsx` bằng `scripts/generate_spi_pcap.py`, với
-`PCAP_FLOWS=100000`, `PCAP_PACKETS=200000`, `BENCH_PACKETS=2000000` và
-`PCAP_INFINITE_RX=1` trên PCAP PMD. File PCAP gốc vẫn có 200k packet để giữ
-kích thước dữ liệu vừa phải; cờ `--packets` của ứng dụng mặc định là 2M packet
-và dựa vào PCAP PMD replay để chạy nhiều vòng trên cùng 100k flow. Có thể chạy
-nhanh hơn khi dev bằng `E2E_WARMUP_RUNS=0 E2E_RUNS=1 make benchmark-e2e`. Các
-profile fixed-worker
-dùng `--fixed-workers` để tắt runtime scaling và dispatch flow trực tiếp bằng
-hash canonical key.
-Khi bật `infinite_rx=1`, script tự truyền `--rx-mbufs` đủ lớn cho PCAP PMD;
-có thể override bằng `PCAP_RX_MBUFS` hoặc `MQ_RX_MBUFS`.
-Profile multi-RX mặc định dùng `MQ_DISPATCHERS=2`, sinh các PCAP shard riêng
-và truyền nhiều `rx_pcap` vào PCAP PMD. Profile này bật
-`--per-dispatcher-limit` để mỗi dispatcher xử lý đúng shard của nó khi
-`infinite_rx=1`, giữ cardinality ở 100k flow. Với dataset mặc định, script tự
-sinh lại shard để tránh dùng nhầm PCAP cũ không đủ packet; nếu tự truyền
-`MQ_PCAP_PREFIX`, đặt `MQ_REGENERATE=1` khi đổi số shard hoặc kích thước.
+- sinh PCAP từ `SPI_DPI_rule.xlsx` bằng `scripts/generate_spi_pcap.py`;
+- dùng PCAP PMD với `infinite_rx=1`;
+- PCAP gốc mặc định có `100000` flow và `200000` packet;
+- app xử lý mặc định `BENCH_PACKETS=2000000` packet nhờ replay PCAP;
+- chạy `2` warmup runs, bỏ qua kết quả warmup;
+- chạy `5` measured runs và lấy median PPS;
+- ghi kết quả vào `reports/e2e_benchmark_results.csv`.
 
-## Chạy với PCAP PMD
+Hai profile mặc định:
 
-DPDK PCAP PMD xuất hiện như một ethdev. Ví dụ:
+| Profile | Topology | Packet xử lý | Kết quả hiện tại |
+|---|---|---:|---:|
+| `pcap-spi-4w-huge` | 1 RX queue, 1 dispatcher, 4 workers | 2,000,000 | 6.75 Mpps |
+| `pcap-spi-mq-2d4w-huge` | 2 RX queues, 2 dispatchers, 4 workers | 2,000,000 | 10.26 Mpps |
+
+PPS là thông lượng packet của toàn pipeline, không phải trung bình mỗi worker.
+Kết quả chi tiết nằm trong `reports/BENCHMARK.md` và
+`reports/e2e_benchmark_results.csv`.
+
+Một vài biến môi trường hữu ích:
 
 ```bash
-sudo ./build/flowtable \
-  -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap' -- \
-  --mode ethdev --port 0 --workers 4 --packets 0
+E2E_WARMUP_RUNS=0 E2E_RUNS=1 make benchmark-e2e
+PCAP_FLOWS=100000 PCAP_PACKETS=200000 BENCH_PACKETS=2000000 make benchmark-e2e
+MQ_DISPATCHERS=2 MQ_WORKERS=4 make benchmark-e2e
 ```
 
-`--packets 0` chạy đến khi nhận `SIGINT`/`SIGTERM`. Không thêm `--tx` nếu chỉ
-muốn replay, phân loại và giải phóng packet. `--tx` bật một TX queue riêng cho
-mỗi worker và cần PMD/port hỗ trợ đủ queue.
-
-Multi-dispatcher/multi-RX chỉ bật trong fixed-worker mode. Ví dụ hai RX queue,
-hai dispatcher và bốn worker:
+Nếu tắt `PCAP_INFINITE_RX`, packet limit không được lớn hơn số packet trong PCAP:
 
 ```bash
-sudo ./build/flowtable \
-  -l 0-6 \
-  --vdev 'net_pcap0,rx_pcap=generated/spi_benchmark_mq_q0.pcap,rx_pcap=generated/spi_benchmark_mq_q1.pcap' -- \
-  --mode ethdev --port 0 --workers 4 --max-workers 4 --packets 2000000 \
-  --rx-queues 2 --dispatchers 2 --fixed-workers
+PCAP_INFINITE_RX=0 PCAP_PACKETS=200000 BENCH_PACKETS=200000 make benchmark-e2e
 ```
 
-Dynamic scaling vẫn dùng single dispatcher/owner-map để tránh concurrent
-ownership update trong dispatcher. Khi scale runtime, dispatcher flush queue,
-pause worker ngắn, rebalance flow đang active theo hash mới, rebuild owner-map
-rồi resume.
+## Runtime CLI
 
-## Runtime control
-
-`--workers` là số worker active ban đầu, còn `--max-workers` là số worker được
-launch sẵn để scale-up runtime. Dispatcher giữ owner-map riêng cho dynamic
-mode. Khi active worker count đổi, pipeline tạm dừng dispatch, drain queue,
-migrate flow đang active theo hash mới và rebuild owner-map để worker mới nhận
-traffic ngay cả khi PCAP PMD đang replay cùng tập flow.
-
-- `SIGUSR1`: tăng active worker count thêm một, tối đa `--max-workers`
-- `SIGUSR2`: giảm active worker count thêm một, tối thiểu một worker
-- `SIGHUP`: reload file `--rules` cho flow mới; flow cũ giữ action đã cache
-- `--stats-interval N`: in live stats mỗi `N` giây khi không bật CLI
-- `--dashboard`: đổi output interval thành dashboard realtime ANSI; nếu chưa
-  truyền `--stats-interval` thì interval mặc định là 1 giây. Dashboard có
-  graph ASCII cho Active Flow, Throughput và Packet Drop.
-- `--cli`: bật CLI terminal trong ethdev mode với `show statistics`,
-  `show flow`, `show worker`, `show worker N`, `show traffic`,
-  `show dashboard`, `rules`, `reload`, `scale up`, `scale down`, `quit`.
-  Khi bật `--cli`, pipeline không tự in `live ...` theo interval để terminal
-  không bị spam và vẫn nhập lệnh bình thường.
-  `show worker N` hiển thị riêng một worker core, gồm queue/lcore/socket,
-  packet/byte/drop, flow lifecycle, sáu traffic classes
-  `HTTP/HTTPS/DNS/TCP/UDP/OTHER` và direction counters.
-
-Ví dụ bật CLI realtime với PCAP PMD:
-
-```bash
-sudo ./build/flowtable \
-  -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap,infinite_rx=1' -- \
-  --mode ethdev --port 0 --workers 2 --max-workers 4 --packets 0 --cli
-```
-
-Lệnh ngắn hơn, tự kiểm tra hugepages và tự sinh PCAP nếu thiếu:
+CLI dùng để quan sát và điều khiển runtime, không phải benchmark chính thức.
+Lệnh nhanh:
 
 ```bash
 scripts/run_cli_pcap.sh
 ```
 
-`scripts/run_cli_pcap.sh` mặc định chạy dynamic mode
-`--workers 2 --max-workers 4`, không truyền `--fixed-workers`. Vì vậy trong
-CLI, `scale up` tăng active worker count và rebalance flow đang active sang
-worker mới; `scale down` migrate flow khỏi worker bị thu hẹp.
-Nếu muốn chạy fixed-worker giống benchmark E2E, dùng
-`FIXED_WORKERS=1 WORKERS=4 MAX_WORKERS=4 scripts/run_cli_pcap.sh`.
+Script này tự build nếu thiếu binary, kiểm tra hugepages, sinh PCAP nếu thiếu và
+mở `./build/flowtable` với PCAP PMD. Mặc định:
 
-Ví dụ bật dashboard realtime:
+```text
+WORKERS=2
+MAX_WORKERS=4
+PACKETS=0
+PCAP_INFINITE_RX=1
+FIXED_WORKERS=0
+```
+
+Nghĩa là CLI mặc định chạy dynamic mode `2/4` worker để test `scale up/down`.
+Các lệnh trong CLI:
+
+```text
+help
+show statistics
+show flow
+show worker
+show worker N
+show traffic
+show dashboard
+rules
+reload
+scale up
+scale down
+quit
+```
+
+Nếu muốn CLI chạy gần giống benchmark fixed-worker 4 worker:
+
+```bash
+FIXED_WORKERS=1 WORKERS=4 MAX_WORKERS=4 scripts/run_cli_pcap.sh
+```
+
+Khi xem dashboard, `pps` là tốc độ theo interval gần nhất, còn `avg pps` là
+trung bình từ lúc start. Hai số này không tương đương median PPS trong
+benchmark E2E.
+
+## Chạy Trực Tiếp Với PCAP PMD
+
+Ví dụ replay một PCAP Ethernet:
 
 ```bash
 sudo ./build/flowtable \
-  -l 0-4 --vdev 'net_pcap0,rx_pcap=traffic.pcap,infinite_rx=1' -- \
-  --mode ethdev --port 0 --workers 4 --packets 0 --dashboard
+  -l 0-4 --huge-dir /mnt/huge --in-memory --no-pci \
+  --vdev 'net_pcap0,rx_pcap=traffic_vlan.pcap,infinite_rx=1' --no-telemetry -- \
+  --mode ethdev --port 0 --workers 4 --max-workers 4 \
+  --packets 0 --rx-mbufs 208192 --cli
 ```
 
-## Rule và xác định hướng
+`--packets 0` nghĩa là chạy đến khi nhận `SIGINT` hoặc `quit` trong CLI.
 
-- [config/spi_rules.csv](config/spi_rules.csv) chứa 13 SPI filters được chuyển
-  từ Excel, precedence theo filter group và một default rule.
-- Workbook không cung cấp action, nên rule nhập từ Excel được gán `FORWARD`.
-- [config/direction_rules.csv](config/direction_rules.csv) chứa các strategy
-  xác định hướng. Cấu hình mẫu hỗ trợ Ethernet không VLAN bằng subnet
-  `10.0.0.0/8`, đồng thời giữ VLAN 100/200 như một ví dụ tùy chọn.
+Ví dụ multi-RX/multi-dispatcher fixed-worker:
 
-DOCX không yêu cầu VLAN hay frame Wi-Fi 802.11. Packet Ethernet tagged và
-untagged đều được hỗ trợ. Traffic từ Wi-Fi dùng được khi AP/router đã bridge
-sang Ethernet; Radiotap/802.11 monitor-mode frame chưa được parse.
-
-Thứ tự ưu tiên resolver là:
-
-```text
-explicit packet hint -> ingress port -> VLAN -> source/destination prefix
+```bash
+sudo ./build/flowtable \
+  -l 0-6 --huge-dir /mnt/huge --in-memory --no-pci \
+  --vdev 'net_pcap0,rx_pcap=generated/spi_benchmark_mq_q0.pcap,rx_pcap=generated/spi_benchmark_mq_q1.pcap,infinite_rx=1' \
+  --no-telemetry -- \
+  --mode ethdev --port 0 --workers 4 --max-workers 4 \
+  --packets 2000000 --rx-mbufs 208192 \
+  --rx-queues 2 --dispatchers 2 --per-dispatcher-limit --fixed-workers
 ```
 
-Định dạng [direction_rules.csv](config/direction_rules.csv):
+## Rule Và Direction
+
+`config/spi_rules.csv` là SPI rule CSV được chuyển từ workbook. Rule được match
+khi flow mới được tạo; action và rule id được cache trong flow entry để packet
+sau của cùng flow không phải scan lại ruleset.
+
+`config/direction_rules.csv` định nghĩa cách xác định tenant và hướng:
 
 ```text
 match_type,value,tenant_id,direction
@@ -184,37 +252,45 @@ VLAN,100,1,UPLINK
 INGRESS_PORT,1,1,DOWNLINK
 ```
 
-Chỉ bật những strategy phản ánh đúng topology triển khai. Ví dụ, không cấu
-hình `INGRESS_PORT,0,1,UPLINK` nếu cùng port 0 nhận cả hai chiều.
-
-Nếu không strategy nào match, hệ thống vẫn tạo symmetric key bằng thứ tự
-endpoint, nhưng direction là `UNKNOWN` và ngữ nghĩa client/server không được
-bảo đảm.
-
-## Cấu trúc repo
+Thứ tự resolver:
 
 ```text
-include/       Public data structures và API
-src/config.c   CLI/runtime config parser
-src/packet.c   Ethernet/VLAN/IPv4/TCP/UDP parser và flow normalization
-src/flow.c     Per-worker flow table, lifecycle counters và aging
-src/rule.c     SPI rule loader, precedence, action và traffic classifier
-src/port.c     Ethdev/PCAP PMD port and queue setup
-src/dispatcher.c RX burst, parse, canonical hash and ring enqueue
-src/worker.c   Worker loop, flow lookup, SPI cache, action counters
-src/control.c  Signals, runtime CLI and rule reload control
-src/pipeline.c Ethdev orchestration, lcore launch and cleanup
-src/stats.c    Live CLI/dashboard/reporting counters and graphs
-tests/         Unit test, test data và workbook test cases
-config/        SPI rules và direction strategies
-scripts/       Tạo workbook và chạy benchmark
-docs/          SRS, HLD, flow diagrams, detailed design, code guide
-reports/       Kết quả benchmark đo trên máy hiện tại
+explicit packet hint -> ingress port -> VLAN -> source/destination prefix
 ```
 
-## Trạng thái xác minh
+Nếu không có rule direction nào match, packet vẫn được tạo symmetric key bằng
+thứ tự endpoint nhưng direction là `UNKNOWN`.
 
-- Build DPDK 25.11.1: đạt
-- Unit tests: 127/127 đạt
-- Ethdev/PCAP path: smoke-test 10/10 VLAN/TCP packet, một bidirectional flow;
-  NIC vật lý và line-rate vẫn cần test trên server đích
+## Module Chính
+
+| File | Vai trò |
+|---|---|
+| `src/main.c` | Parse EAL/app options và khởi động pipeline. |
+| `src/config.c` | Validate/default runtime config. |
+| `src/port.c` | Setup ethdev, queue, mempool, RX/TX. |
+| `src/packet.c` | Parser Ethernet/VLAN/IPv4/TCP/UDP, direction resolver, canonical key. |
+| `src/dispatcher.c` | RX burst, chọn worker, owner-map dynamic, ring enqueue. |
+| `src/worker.c` | Worker loop, flow lookup/create, SPI cache, action, aging, counters. |
+| `src/flow.c` | Per-worker flow table, lifecycle, timeout, migration helper. |
+| `src/rule.c` | SPI CSV loader, precedence, wildcard match, rule hit. |
+| `src/control.c` | Signal, CLI command, reload, scale up/down. |
+| `src/stats.c` | CLI tables, dashboard ANSI, graphs và summary counters. |
+| `src/pipeline.c` | Orchestration, lcore launch, dispatcher/worker lifecycle. |
+
+## Tài Liệu Và Kết Quả
+
+- `docs/report.tex`: báo cáo LaTeX.
+- `docs/report.pdf`: PDF report hiện tại.
+- `docs/dashboard_realtime.png`, `docs/worker_realtime.png`: ảnh minh họa CLI.
+- `reports/BENCHMARK.md`: tóm tắt test và benchmark.
+- `reports/e2e_benchmark_results.csv`: CSV kết quả benchmark mới nhất.
+- `tests/FlowTable_Test_Cases.xlsx`: workbook test case gồm functional và
+  performance scenarios.
+
+## Trạng Thái Xác Minh Hiện Tại
+
+- Unit test: `127/127` passed.
+- PCAP PMD smoke path: processed packet, active flow và drop counters reconcile.
+- E2E benchmark đã đo với hugepages, warmup, median run và `infinite_rx=1`.
+- Chưa đo: NIC line-rate vật lý, packet loss trên NIC thật, latency p50/p99,
+  OS-sampled CPU utilization và aging pressure benchmark dài hơn timeout.
