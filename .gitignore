@@ -1,2 +1,5 @@
-*.pcap
 build/
+__pycache__/
+*.pyc
+*.pcap
+docs/

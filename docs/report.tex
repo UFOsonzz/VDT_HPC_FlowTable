@@ -1,0 +1,1299 @@
+% !TeX program = pdflatex
+\documentclass[12pt,a4paper,twoside]{report}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[utf8]{inputenc}
+  \usepackage[T5]{fontenc}
+\else
+  \usepackage{fontspec}
+  \setmainfont{TeX Gyre Termes}
+\fi
+\usepackage[vietnamese]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{newtxmath}
+\emergencystretch=2em
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{graphicx}
+\graphicspath{{./}{template/}}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{shapes,shapes.geometric,arrows.meta,decorations.pathreplacing,positioning,calc,fit}
+
+\usepackage{geometry}
+\geometry{
+  a4paper,
+  inner=30mm,
+  outer=20mm,
+  top=20mm,
+  bottom=20mm
+}
+
+\usepackage{setspace}
+\setstretch{1.5}
+
+\usepackage{indentfirst}
+\setlength{\parindent}{1cm}
+\setlength{\parskip}{4pt}
+
+\usepackage{enumitem}
+\setlist{nosep}
+
+\usepackage{caption}
+\usepackage{etoolbox}
+\usepackage{float}
+\captionsetup[table]{font=it, labelfont={bf,up}, labelsep=colon, name=Bảng, skip=4pt, position=top}
+\captionsetup[figure]{font=it, labelfont={bf,up}, labelsep=colon, name=Hình, justification=centering, position=bottom, skip=6pt}
+\AtBeginEnvironment{figure}{
+  \setlength{\belowcaptionskip}{0pt}
+}
+
+\setlength{\textfloatsep}{1.1\baselineskip plus 2pt minus 2pt}
+\setlength{\intextsep}{1.1\baselineskip plus 2pt minus 2pt}
+\setlength{\floatsep}{1.1\baselineskip plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{0.2\baselineskip plus 1pt}
+
+\raggedbottom
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.15}
+\renewcommand{\floatpagefraction}{0.8}
+
+\usepackage[nopatch=footnote]{microtype}
+
+\usepackage{titlesec}
+\renewcommand{\thechapter}{\Roman{chapter}}
+\titleformat{\chapter}[hang]
+  {\normalfont\normalsize\bfseries\centering}
+  {\thechapter.\ }
+  {10pt}
+  {\MakeUppercase}
+\titlespacing*{\chapter}{0pt}{-40pt}{10pt}
+\titlespacing*{name=\chapter,numberless}{0pt}{-40pt}{10pt}
+
+\titleformat{\section}[hang]
+  {\normalfont\normalsize\bfseries}
+  {\thesection.}
+  {0.5em}
+  {}
+\titlespacing*{\section}{0pt}{0.2\baselineskip}{0.15\baselineskip}
+
+\titleformat{\subsection}[hang]
+  {\normalfont\normalsize\bfseries}
+  {\thesubsection.}
+  {0.5em}
+  {}
+\titlespacing*{\subsection}{0pt}{0.2\baselineskip}{0.15\baselineskip}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\chaptermark}[1]{\markboth{\thechapter.\ #1}{}}
+\fancyhead[L]{\fontsize{9pt}{11pt}\selectfont\leftmark}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+\usepackage[unicode, hypertexnames=false]{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    filecolor=black,
+    urlcolor=black
+}
+
+\addto\captionsvietnamese{%
+  \renewcommand{\contentsname}{Mục lục}%
+  \renewcommand{\listfigurename}{Danh mục hình vẽ}%
+  \renewcommand{\listtablename}{Danh mục bảng}%
+}
+
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\mpps}[1]{#1\,Mpps}
+\newcommand{\mflows}[1]{#1\,Mflows/s}
+\newcommand{\safeincludegraphics}[3][]{%
+  \IfFileExists{#2}{%
+    \includegraphics[#1]{#2}%
+  }{%
+    \fbox{%
+      \begin{minipage}{0.82\textwidth}
+        \centering
+        \vspace{0.8cm}
+        \textbf{Chưa có ảnh: \texttt{\detokenize{#2}}}\\
+        #3
+        \vspace{0.8cm}
+      \end{minipage}
+    }%
+  }%
+}
+
+\tikzset{
+  block/.style={draw, rounded corners=2pt, align=center, minimum height=9mm, inner sep=4pt},
+  process/.style={block, fill=blue!6},
+  store/.style={block, fill=green!8},
+  decision/.style={diamond, draw, aspect=2, align=center, inner sep=1pt, fill=orange!10},
+  arrow/.style={-{Latex[length=2mm]}, thick},
+  lifeline/.style={draw, dashed, gray!70}
+}
+
+\begin{document}
+
+% ==========================================
+% TRANG BÌA BÁO CÁO
+% ==========================================
+\begin{titlepage}
+    \begin{center}
+        \large
+        \vspace{2.5cm}
+        \includegraphics[width=0.33\textwidth]{viettel_logo.png}
+
+        \textbf{TẬP ĐOÀN CÔNG NGHIỆP - VIỄN THÔNG QUÂN ĐỘI} \\
+        \vspace{2.5cm}
+
+        \Large
+        \textbf{BÁO CÁO MINI-PROJECT} \\
+        \vspace{0.5cm}
+        \textbf{FlowTable: Hệ thống phân tải luồng và quản lý Flow Table hiệu năng cao sử dụng DPDK}\\
+        \vspace{2.0cm}
+
+        \large
+        \textbf{Trần Lê Ngọc Tâm} \\
+        \textbf{tamtranlengoc2006@gmail.com} \\
+        \textbf{Chương trình Viettel Digital Talent 2026} \\
+        \textbf{Lĩnh vực: Software Engineer} \\
+
+        \vspace{2.5cm}
+
+        \begin{tabular}{cc}
+            \large
+            \textbf{Mentor:} & Nguyễn Ngọc Dũng \\
+            \textbf{Đơn vị:} & Viettel High Tech
+        \end{tabular}
+
+        \vfill
+    \end{center}
+\end{titlepage}
+
+% ==========================================
+% PHẦN ĐẦU TRANG SỐ LA MÃ
+% ==========================================
+\newpage
+\pagenumbering{roman}
+
+\chapter*{Lời mở đầu}
+\addcontentsline{toc}{chapter}{Lời mở đầu}
+Trong các hệ thống mạng lõi hiện đại, thành phần Data Plane không chỉ còn là
+một khối chương trình nhận gói tin rồi chuyển tiếp đơn tuyến. Firewall thế hệ
+mới, Load Balancer, CGNAT, Security Gateway và User Plane Function trong mạng
+5G đều cần duy trì trạng thái của rất nhiều phiên truyền thông đồng thời, đồng
+thời vẫn phải xử lý lưu lượng ở mức hàng triệu packet mỗi giây. Khi lưu lượng
+tăng cao, mỗi chi phí nhỏ trên đường đi của packet như interrupt, context
+switch, copy bộ nhớ, cache miss hoặc lock contention đều có thể biến thành nút
+nghẽn rõ rệt.
+
+Trọng tâm của mini project FlowTable là bài toán phân phối packet theo flow
+trên nhiều CPU core. Một flow phải được xử lý nhất quán bởi cùng một worker để
+giữ thứ tự packet, giữ trạng thái phiên cục bộ và hạn chế chia sẻ dữ liệu nóng
+giữa các core. Nếu dispatcher phân phối từng packet độc lập mà không xét flow
+affinity, các packet hai chiều của cùng một phiên có thể bị tách sang nhiều
+worker, dẫn tới sai lệch thống kê, tăng cache miss và làm phức tạp hóa logic
+quản lý trạng thái.
+
+Đề tài \textbf{``FlowTable: Hệ thống phân tải luồng và quản lý Flow Table hiệu
+năng cao sử dụng DPDK''} được triển khai để mô phỏng một pipeline Data Plane
+thực tế trên nền DPDK. Hệ thống nhận packet từ card mạng hoặc từ file PCAP
+thông qua PCAP PMD, parse Ethernet/VLAN/IPv4/TCP/UDP, trích xuất bộ five-tuple,
+chuẩn hóa khóa luồng theo hai chiều uplink/downlink, phân tải packet tới worker
+thông qua ring và duy trì flow table tốc độ cao trên từng worker shard. Trên
+đường xử lý, packet còn được đối chiếu với bộ luật SPI để quyết định action và
+ghi nhận thống kê realtime.
+
+Khác với một bản demo chỉ sinh dữ liệu giả lập trong bộ nhớ, project hiện tại
+giữ đường chạy packet đầy đủ hơn: PCAP/NIC đi qua DPDK ethdev, parser, direction
+resolver, dispatcher, ring, worker, flow table, SPI cache, counters và phần
+render CLI/dashboard. Benchmark chính thức dùng workload \textbf{100.000 flow},
+file PCAP gốc \textbf{200.000 packet} và giới hạn xử lý
+\textbf{2.000.000 packet} nhờ \textbf{\code{infinite\_rx=1}}, chạy hugepages,
+có warmup và lấy median của nhiều lần đo. Vì vậy các con số trong báo cáo phản
+ánh thông lượng của toàn pipeline hiện hữu, không phải tốc độ của một hàm đo
+rời rạc tách khỏi runtime.
+
+Báo cáo này trình bày lại toàn bộ quá trình thiết kế, triển khai và kiểm thử
+theo bố cục gần với một tài liệu kỹ thuật hoàn chỉnh: bối cảnh, yêu cầu, cơ sở
+lý thuyết, kiến trúc, chi tiết module, kết quả benchmark, các giới hạn hiện tại
+và lộ trình phát triển. Các phần mô tả được viết bám sát mã nguồn trong repo để
+tránh nhầm lẫn với những phương án thiết kế từng được cân nhắc nhưng không còn
+trong implementation hiện tại.
+
+\chapter*{Tóm tắt nội dung và đóng góp}
+\addcontentsline{toc}{chapter}{Tóm tắt nội dung và đóng góp}
+\begingroup
+\small
+\setstretch{1.18}
+Báo cáo này trình bày kết quả xây dựng hệ thống FlowTable DPDK, tập trung vào
+hai vấn đề cốt lõi của Data Plane đa nhân: phân tải flow ổn định và quản lý
+flow table hiệu năng cao. Các đóng góp chính:
+
+\begin{enumerate}[itemsep=1pt, topsep=1pt, parsep=0pt, partopsep=0pt]
+    \item \textbf{Thiết kế pipeline RX/Dispatcher/Worker rõ ràng:} Ứng dụng
+    sử dụng DPDK ethdev để nhận packet theo burst, sau đó dispatcher parse
+    header, chuẩn hóa flow key và enqueue work item sang worker thông qua các
+    hàng đợi \code{rte\_ring}. Kiến trúc này tách trách nhiệm nhận/điều phối
+    packet khỏi trách nhiệm quản lý flow state, giúp từng worker giữ dữ liệu
+    nóng của mình cục bộ.
+
+    \item \textbf{Bảo toàn flow affinity bằng canonical five-tuple:} Thay vì
+    dùng công thức minh họa \code{SourceIP \% N}, project tính hash trên khóa
+    canonical gồm tenant, protocol, client/server IP và client/server port.
+    Cách này vẫn thỏa mãn yêu cầu một flow đi về một worker, đồng thời giữ hai
+    chiều uplink/downlink của cùng phiên ở cùng shard.
+
+    \item \textbf{Flow Table theo shard riêng của worker:} Mỗi worker sở hữu
+    một \code{rte\_hash}, vùng entry và free-stack riêng. Fast path không cần
+    khóa chia sẻ giữa các worker vì worker chỉ truy cập shard của mình. Cơ chế
+    aging được budget trong worker loop, tránh một thread dọn dẹp riêng đi vào
+    dữ liệu đang thuộc quyền sở hữu của worker khác.
+
+    \item \textbf{SPI Rule Engine và runtime reload:} Bộ luật SPI được nạp từ
+    \code{config/spi\_rules.csv}. Rule chỉ được match khi flow mới được tạo;
+    action và rule id được cache trong entry, nhờ đó packet sau của cùng flow
+    không phải quét lại ruleset. CLI hỗ trợ \code{reload} và \code{SIGHUP} để
+    áp dụng ruleset mới cho các flow tạo sau thời điểm reload.
+
+    \item \textbf{Realtime CLI và Dashboard terminal:} Runtime CLI hỗ trợ
+    \code{show statistics}, \code{show flow}, \code{show worker},
+    \code{show worker N}, \code{show traffic}, \code{show dashboard},
+    \code{scale up}, \code{scale down} và \code{reload}. Dashboard ANSI hiển thị
+    bảng worker, traffic class, rule hit và ba đồ thị Active Flow, Throughput,
+    Packet Drop.
+
+    \item \textbf{Benchmark end-to-end có hugepages và warmup:} E2E benchmark
+    sử dụng PCAP PMD với \code{infinite\_rx=1}, \textbf{100.000 flow},
+    file gốc \textbf{200.000 packet}, giới hạn xử lý \textbf{2.000.000 packet},
+    2 warmup run và 5 measured run. Profile single-dispatcher đạt
+    \textbf{\mpps{6,75}}, trong khi profile multi-dispatcher/multi-RX đạt
+    \textbf{\mpps{10,26}} trên môi trường laptop Intel Core i5-8250U.
+\end{enumerate}
+
+PPS trong báo cáo là thông lượng packet đã xử lý của toàn pipeline tại median
+run, không phải trung bình của một worker. Dynamic scaling là tính năng runtime
+được vận hành trong CLI; benchmark chính thức dùng fixed-worker mode để đo
+đường dữ liệu nóng ổn định và tránh đưa chi phí rebalance vào kết quả PPS.
+\endgroup
+
+\newpage
+\tableofcontents
+\newpage
+\listoffigures
+\newpage
+\listoftables
+
+\newpage
+\pagenumbering{arabic}
+
+\chapter{Giới thiệu}
+
+\section{Bối cảnh đề tài}
+Trong kiến trúc xử lý mạng truyền thống của Linux, packet đi qua nhiều tầng
+trừu tượng trước khi đến được logic của ứng dụng. NIC nhận frame, DMA vào RAM,
+phát interrupt, kernel driver tạo cấu trúc trung gian, stack mạng tiếp tục parse
+và cuối cùng ứng dụng user space phải gọi system call để đọc dữ liệu. Quy trình
+này rất phù hợp cho hệ thống tổng quát, nhưng không phù hợp khi mục tiêu là
+xử lý hàng triệu packet nhỏ mỗi giây với độ trễ thấp.
+
+DPDK giải quyết nút nghẽn này bằng mô hình kernel bypass. Packet buffer được
+cấp phát trên hugepages, NIC/PMD được truy cập qua polling thay vì interrupt,
+và ứng dụng xử lý trực tiếp con trỏ \code{rte\_mbuf}. Khi kết hợp với core
+pinning, burst processing và lock-free ring, DPDK cho phép xây dựng pipeline
+Data Plane có tính quyết định cao hơn nhiều so với socket API truyền thống.
+
+Tuy nhiên, chỉ nhận packet nhanh là chưa đủ. Với các hệ thống stateful như
+Firewall, CGNAT, Load Balancer hoặc Security Gateway, hệ thống còn phải nhớ
+được trạng thái của từng flow. Mỗi packet cần được map tới một flow entry, flow
+entry cần cập nhật timestamp và counter, các flow không hoạt động cần timeout,
+và action của policy cần được áp dụng nhất quán. Nếu tất cả worker cùng truy
+cập một bảng flow chung, chi phí lock và cache bouncing sẽ làm mất lợi thế của
+DPDK. Do đó, hướng thiết kế của project là chia ownership theo worker: dispatcher
+chỉ chọn owner, còn worker sở hữu và cập nhật flow table shard của mình.
+
+\section{Yêu cầu hệ thống}
+Các yêu cầu của đề bài được chuẩn hóa thành hai nhóm: yêu cầu chức năng và yêu
+cầu phi chức năng. Nhóm chức năng bảo đảm hệ thống chạy đúng đường xử lý packet
+từ input đến statistics, còn nhóm phi chức năng tập trung vào đặc tính hiệu năng
+và khả năng mở rộng trên nhiều core.
+
+\begin{table}[H]
+    \centering
+    \caption{Các yêu cầu chức năng lõi của hệ thống}
+    \label{tab:func_req}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{L{4.0cm} L{9.2cm} C{1.4cm}}
+        \toprule
+        \textbf{Nhóm tính năng} & \textbf{Yêu cầu chi tiết} & \textbf{Trạng thái} \\
+        \midrule
+        Packet Input & Nhận packet trực tiếp từ NIC hoặc đọc replay từ PCAP thông qua DPDK PCAP PMD. & Đạt \\
+        Parser \& Extraction & Parse Ethernet, VLAN tùy chọn, IPv4, TCP/UDP và trích xuất five-tuple. & Đạt \\
+        Direction Resolver & Xác định tenant và hướng uplink/downlink bằng hint, ingress port, VLAN hoặc IP prefix. & Đạt \\
+        Flow Table Management & Tạo flow mới, lookup, cập nhật \code{last\_seen}, timeout và thống kê vòng đời. & Đạt \\
+        Load Balancing & Phân tải flow lên 4--8 worker và giữ flow affinity cho hai chiều của phiên. & Đạt \\
+        SPI Rule Engine & Match luật SPI, hỗ trợ action \code{FORWARD}, \code{DROP}, \code{LOG}, \code{COUNT}. & Đạt \\
+        Realtime Monitor & CLI/dashboard hiển thị worker, traffic class, rule hit, active flow, throughput và drop. & Đạt \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Các yêu cầu phi chức năng và lựa chọn thiết kế}
+    \label{tab:nonfunc_req}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{L{4.0cm} L{4.0cm} L{7.0cm}}
+        \toprule
+        \textbf{Yêu cầu chất lượng} & \textbf{Mục tiêu} & \textbf{Phương pháp hiện thực} \\
+        \midrule
+        Flow Affinity & Một flow chỉ có một worker owner & Hash canonical key trong fixed-worker mode, owner-map trong dynamic mode. \\
+        Lock-free Fast Path & Tránh shared lock giữa worker & Per-worker \code{rte\_hash} shard và SPSC ring từ dispatcher tới worker. \\
+        Cache Locality & Giảm cache miss và cache-line bouncing & Worker tự sở hữu flow entry, action cache và local counters. \\
+        NUMA Awareness & Giảm truy cập RAM khác socket & Ring, mempool và flow table được tạo theo socket của lcore khi runtime cung cấp socket id. \\
+        Observability & Quan sát runtime có kiểm soát & CLI cung cấp thống kê theo lệnh, dashboard cập nhật định kỳ khi được bật và không ghi log liên tục lên control console. \\
+        Benchmark Reproducibility & Có warmup, median và dữ liệu input rõ ràng & \code{make benchmark-e2e} sinh PCAP từ workbook rule, chạy warmup và ghi CSV. \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\section{Use Case hệ thống}
+Hình~\ref{fig:use_case} mô tả các tác nhân chính. Quản trị viên khởi động hệ
+thống, cấu hình rule, reload rule và theo dõi thống kê. Nguồn lưu lượng có thể
+là NIC thật hoặc PCAP PMD. Ứng dụng FlowTable đứng giữa để xử lý, cập nhật
+state và xuất kết quả quan sát.
+
+\begin{figure}[H]
+    \centering
+    \resizebox{0.86\textwidth}{!}{
+    \begin{tikzpicture}[
+        node distance=0.6cm and 2.5cm,
+        usecase/.style={draw, ellipse, minimum height=0.35cm, text width=3.8cm, fill=green!15, align=center, font=\scriptsize},
+        actor/.style={draw, rectangle, minimum height=1.3cm, text width=2.5cm, fill=blue!15, align=center, rounded corners, font=\scriptsize},
+        system/.style={draw, rectangle, dashed, inner sep=0.45cm},
+        arrow/.style={draw, -, >=stealth, thick}
+    ]
+        \node[usecase] (uc3) {Giám sát realtime qua CLI/Dashboard};
+        \node[usecase, above=of uc3] (uc2) {Nạp và reload luật SPI};
+        \node[usecase, above=of uc2] (uc1) {Khởi động DPDK EAL, hugepages và port};
+        \node[usecase, below=of uc3] (uc4) {Đưa packet từ NIC hoặc PCAP vào pipeline};
+        \node[usecase, below=of uc4] (uc5) {Nhận packet forward hoặc giải phóng mbuf};
+
+        \node[actor, left=of uc3] (admin) {Quản trị viên\\Control Plane};
+        \node[actor, right=of uc3] (traffic) {NIC / PCAP PMD\\Data Plane};
+        \node[system, fit=(uc1) (uc2) (uc3) (uc4) (uc5), label=above:\textbf{Hệ thống FlowTable}] (sys) {};
+
+        \draw[arrow] (admin) -- (uc1.west);
+        \draw[arrow] (admin) -- (uc2.west);
+        \draw[arrow] (admin) -- (uc3.west);
+        \draw[arrow] (traffic) -- (uc4.east);
+        \draw[arrow] (traffic) -- (uc5.east);
+    \end{tikzpicture}
+    }
+    \caption{Use Case Diagram của hệ thống FlowTable}
+    \label{fig:use_case}
+\end{figure}
+
+\section{Phạm vi và giới hạn hệ thống}
+Project tập trung vào IPv4 data plane theo yêu cầu mini project. Parser hiện
+hỗ trợ Ethernet, VLAN tagged/untagged, IPv4, TCP và UDP. Các frame Wi-Fi
+monitor-mode dạng radiotap/802.11 không thuộc phạm vi parser hiện tại; traffic
+Wi-Fi vẫn có thể được xử lý nếu đã được bridge thành Ethernet frame trước khi
+đi vào DPDK/PCAP PMD.
+
+Benchmark trong báo cáo được đo trên laptop, không phải máy chủ data-plane
+chuyên dụng. Vì vậy, kết quả phù hợp để đánh giá tương quan giữa single
+dispatcher và multi-dispatcher trong cùng môi trường, nhưng chưa thể xem là
+line-rate của NIC vật lý. Các số đo chưa có trong phạm vi hiện tại gồm latency
+p50/p99, packet loss vật lý trên NIC thật, OS-sampled CPU utilization bằng
+\code{pidstat}/\code{perf}, và bài aging pressure chạy quá timeout nhiều vòng.
+
+\section{Thông tin mã nguồn và tổ chức thư mục}
+Mã nguồn được chia module rõ ràng, tránh gom toàn bộ xử lý vào một file
+pipeline lớn. Cấu trúc hiện tại phản ánh đường đi thực tế của packet và giúp
+kiểm thử từng lớp độc lập hơn.
+
+\begin{table}[H]
+\centering
+\caption{Tổ chức mã nguồn của project}
+\label{tab:module_tree}
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{0.86}
+\begin{tabular}{L{3.1cm} L{11.25cm}}
+\toprule
+\textbf{Module} & \textbf{Vai trò triển khai} \\
+\midrule
+\code{src/main.c} & Điểm khởi chạy, parse EAL/app arguments và chọn mode chạy. \\
+\code{src/config.c} & Runtime config, default value, rule path, direction path, worker count và queue options. \\
+\code{src/port.c} & Cấu hình ethdev/PCAP PMD, RX/TX queue, mbuf pool và kiểm tra port. \\
+\code{src/packet.c} & Parse frame, resolve direction, chuẩn hóa five-tuple và phân loại traffic class. \\
+\code{src/dispatcher.c} & RX burst, chọn worker, owner-map dynamic, dispatch queue và ring enqueue. \\
+\code{src/worker.c} & Worker loop, dequeue burst, lookup/create flow, SPI cache, action, aging và publish counters. \\
+\code{src/flow.c} & Per-worker flow table, free-stack, create/delete, timeout aging và migration helper. \\
+\code{src/rule.c} & SPI CSV loader, precedence, wildcard match, action name và rule hit id. \\
+\code{src/control.c} & Signal handler, CLI command, reload, scale up/down và terminal prompt. \\
+\code{src/stats.c} & Bảng CLI, dashboard ANSI, graph history, aggregate counters và summary output. \\
+\code{scripts/} & Script sinh PCAP/workbook, setup hugepages, chạy CLI và chạy E2E benchmark. \\
+\code{reports/} & Benchmark CSV/Markdown, requirement review và design diagrams. \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+    \centering
+    \resizebox{0.94\textwidth}{!}{
+    \begin{tikzpicture}[
+        component/.style={draw, rectangle, minimum height=1.0cm, text width=3.25cm, fill=cyan!15, align=center, rounded corners, thick, font=\scriptsize},
+        statsbox/.style={draw, rectangle, minimum height=1.0cm, text width=3.25cm, fill=purple!10, align=center, rounded corners, thick, font=\scriptsize},
+        arrow/.style={->, >=stealth, thick},
+        statarrow/.style={->, >=stealth, thick, dashed}
+    ]
+        \node[component] (pipeline) at (0,4.2) {Pipeline Orchestration\\\code{pipeline.c}};
+        \node[component] (port) at (-4.8,4.2) {Port Setup\\\code{port.c}};
+        \node[component] (control) at (4.8,4.2) {Control Plane\\\code{control.c}};
+        \node[component] (disp) at (-3.2,2.1) {Dispatcher\\\code{dispatcher.c}};
+        \node[component] (worker) at (3.2,2.1) {Worker Core\\\code{worker.c}};
+        \node[component] (packet) at (-4.8,0) {Packet Parser\\\code{packet.c}};
+        \node[component] (flow) at (1.4,0) {Flow Table\\\code{flow.c}};
+        \node[component] (rule) at (5.4,0) {SPI Rules\\\code{rule.c}};
+        \node[statsbox] (stats) at (-1.7,-2.1) {Stats/Dashboard\\\code{stats.c}};
+
+        \draw[arrow] (pipeline.west) -- (port.east);
+        \draw[arrow] (pipeline.east) -- (control.west);
+        \draw[arrow] (pipeline.south west) -- (disp.north);
+        \draw[arrow] (pipeline.south east) -- (worker.north);
+        \draw[arrow] (disp.south west) -- (packet.north east);
+        \draw[arrow] (worker.south west) -- (flow.north east);
+        \draw[arrow] (worker.south east) -- (rule.north west);
+
+        \draw[statarrow] (packet.south) .. controls (-4.8,-1.25) and (-3.6,-2.1) .. (stats.west);
+        \draw[statarrow] (flow.south) .. controls (1.4,-1.15) and (0.6,-1.9) .. (stats.east);
+        \draw[statarrow] (rule.south) .. controls (5.4,-1.4) and (1.2,-2.7) .. (stats.south east);
+    \end{tikzpicture}
+    }
+    \caption{Component Diagram theo module mã nguồn hiện tại}
+    \label{fig:component_diag}
+\end{figure}
+
+\newpage
+\chapter{Nội dung và phương pháp}
+
+\section{Cơ sở lý thuyết liên quan}
+
+\subsection{Kernel Bypass và DPDK Poll Mode Driver}
+Trong mô hình kernel networking thông thường, sự tổng quát của hệ điều hành đi
+kèm nhiều chi phí: interrupt handler, socket buffer, scheduler, syscall và copy
+dữ liệu giữa kernel space và user space. Với packet nhỏ, phần payload có thể rất
+ít nhưng overhead cố định vẫn lớn, khiến PPS bị giới hạn trước khi CPU thực sự
+chạy logic nghiệp vụ.
+
+DPDK thay đổi giả định này bằng Poll Mode Driver. Ứng dụng user space chủ động
+poll RX queue và nhận packet theo burst thông qua \code{rte\_eth\_rx\_burst()}.
+Packet buffer được lưu dưới dạng \code{rte\_mbuf}; ứng dụng chuyển con trỏ mbuf
+giữa các stage thay vì sao chép payload. Hugepages giúp vùng nhớ DMA/mempool
+ổn định và giảm TLB miss so với page 4KB thông thường. Cách tiếp cận này đánh
+đổi việc lcore poll liên tục để lấy throughput và latency ổn định.
+
+\subsection{Flow-based processing và five-tuple}
+\textbf{Flow-based processing} xem packet như một phần của phiên truyền thông,
+không xử lý từng packet rời rạc. Ý nghĩa thiết kế là hệ thống phải ra quyết
+định dựa trên \textbf{trạng thái của flow}, không chỉ dựa trên header của packet
+hiện tại. Five-tuple truyền thống gồm:
+\[
+  (src\_ip, dst\_ip, src\_port, dst\_port, protocol)
+\]
+Trong project, khóa flow được chuẩn hóa thêm theo tenant và hướng:
+\begin{verbatim}
+typedef struct {
+    uint16_t tenant_id;
+    uint8_t  protocol;
+    uint8_t  reserved;
+    uint32_t client_ip;
+    uint32_t server_ip;
+    uint16_t client_port;
+    uint16_t server_port;
+} ft_flow_key_t;
+\end{verbatim}
+
+Việc chuẩn hóa này giải quyết một vấn đề quan trọng: \textbf{hai chiều uplink
+và downlink của cùng phiên có source/destination đảo ngược nhau}. Nếu hash trực
+tiếp raw five-tuple, hai chiều rất dễ đi tới hai worker khác nhau. Bằng cách
+quy về \textbf{client/server key}, hệ thống tạo được \textbf{một canonical key
+chung cho cả hai chiều}; đây là điều kiện nền để giữ \textbf{flow affinity}
+đúng trong cả single-dispatcher và multi-dispatcher mode.
+
+\subsection{Cuckoo Hashing và \code{rte\_hash}}
+\textbf{Flow table cần lookup nhanh và ổn định}. DPDK \code{rte\_hash} sử dụng
+cơ chế băm phù hợp với workload packet processing, cho phép lookup theo key cố
+định và trả về data pointer hoặc index. Trong project, \code{rte\_hash}
+\textbf{không được dùng như một bảng shared toàn cục}; mỗi worker tạo một hash
+riêng trên socket của lcore. Chính cách chia ownership này mới là điểm quan
+trọng để tránh lock trên fast path: \textbf{worker nào sở hữu flow thì worker
+đó lookup, update, age và delete flow}.
+
+Khi flow mới xuất hiện, worker lấy slot từ \textbf{free-stack}, khởi tạo entry,
+thêm key vào \code{rte\_hash} và tăng counter created. Khi flow hết hạn, worker
+xóa key, trả index về free-stack và cập nhật counter deleted/timed-out. Do chỉ
+worker owner thao tác shard của mình, các thao tác create/update/delete
+\textbf{không phải đồng bộ với worker khác}; đây là lý do fast path vẫn đơn
+giản dù hệ thống chạy nhiều worker.
+
+\subsection{NUMA locality và CPU cache}
+\textbf{Hiệu năng data plane phụ thuộc lớn vào vị trí dữ liệu trong cache}. Nếu
+flow entry, rule cache và counter liên tục bị nhiều core ghi chéo, cache line
+sẽ bị di chuyển giữa các core và làm giảm throughput. Project xử lý vấn đề này
+theo ba lớp:
+\begin{itemize}
+    \item \textbf{Worker giữ local counters trên hot path}, sau đó định kỳ
+    publish sang vùng atomic để CLI đọc.
+    \item \textbf{Flow table shard nằm trong worker}, không chia sẻ entry nóng
+    cho worker khác.
+    \item \textbf{Ring giữa dispatcher và worker dùng mô hình SPSC}; trong
+    multi-dispatcher, \textbf{mỗi dispatcher có ring riêng tới từng worker} để
+    tránh shared enqueue lock.
+\end{itemize}
+
+\section{Thiết kế và triển khai chi tiết hệ thống}
+
+\subsection{Kiến trúc tổng thể Pipeline}
+\textbf{FlowTable hiện tại là kiến trúc pipeline RX/Dispatcher/Worker}, không
+phải mô hình run-to-complete đặt toàn bộ xử lý trên một core. Một packet hợp lệ
+sẽ đi qua các bước cố định: \textbf{RX burst từ ethdev/PCAP PMD}, \textbf{parse
+Ethernet/VLAN/IPv4/TCP/UDP}, \textbf{resolve tenant và direction},
+\textbf{normalize thành canonical five-tuple}, \textbf{chọn worker owner},
+\textbf{enqueue qua ring}, sau đó worker mới thực hiện \textbf{flow lookup},
+\textbf{SPI action cache}, \textbf{cập nhật counters} và \textbf{forward/free
+mbuf}. Cách chia stage này làm cho trách nhiệm của từng module rõ ràng: dispatcher
+tập trung vào RX/parse/định tuyến, worker tập trung vào trạng thái flow và
+policy.
+
+Điểm quan trọng nhất trong kiến trúc là \textbf{ownership theo worker}. Worker
+không cùng nhau ghi một flow table toàn cục; thay vào đó, mỗi worker sở hữu một
+\textbf{flow table shard riêng}, một \textbf{work-item mempool riêng} và các
+\textbf{local counters riêng}. Dispatcher chỉ quyết định packet thuộc về worker
+nào rồi gửi con trỏ work item qua ring. Nhờ vậy, fast path tránh được shared
+flow-table lock và giảm cache-line bouncing khi số lượng packet tăng.
+
+Với cấu hình benchmark multi-RX hiện tại, hệ thống chạy theo topology
+\textbf{2 dispatcher x 4 worker}: hai RX queue đọc hai PCAP shard, mỗi dispatcher
+parse packet của queue mình và cùng dùng công thức \textbf{hash canonical key
+mod active worker count} để chọn worker. Để tránh shared enqueue lock, \textbf{mỗi
+dispatcher có một SPSC ring riêng tới từng worker}; vì vậy một worker có thể có
+nhiều input ring và sẽ \textbf{round-robin drain} các ring này trong vòng lặp
+worker. Đây chính là điểm khác biệt giúp profile \code{pcap-spi-mq-2d4w-huge}
+giảm bottleneck ở dispatcher so với profile một dispatcher.
+
+\begin{figure}[H]
+    \centering
+    \resizebox{0.96\textwidth}{!}{
+    \begin{tikzpicture}[
+        rx/.style={draw, rectangle, minimum height=0.9cm, text width=2.45cm, fill=blue!10, align=center, rounded corners, font=\scriptsize},
+        disp/.style={draw, rectangle, minimum height=1.0cm, text width=2.65cm, fill=cyan!15, align=center, rounded corners, thick, font=\scriptsize},
+        matrix/.style={draw, rectangle, minimum height=2.5cm, text width=2.55cm, fill=yellow!16, align=center, rounded corners, thick, font=\scriptsize},
+        worker/.style={draw, rectangle, minimum height=0.78cm, text width=2.75cm, fill=green!14, align=center, rounded corners, thick, font=\scriptsize},
+        shard/.style={draw, rectangle, minimum height=0.72cm, text width=2.45cm, fill=orange!15, align=center, rounded corners, font=\scriptsize},
+        monitor/.style={draw, rectangle, minimum height=0.82cm, text width=3.0cm, fill=purple!10, align=center, rounded corners, font=\scriptsize},
+        arrow/.style={->, >=stealth, thick},
+        statarrow/.style={->, >=stealth, thick, dashed}
+    ]
+        \node[rx] (src) at (0,0) {NIC hoặc\\PCAP PMD\\\textbf{ethdev input}};
+        \node[rx] (rx0) at (3.0,1.05) {RX Queue 0\\PCAP shard 0};
+        \node[rx] (rx1) at (3.0,-1.05) {RX Queue 1\\PCAP shard 1};
+
+        \node[disp] (d0) at (6.1,1.05) {Dispatcher 0\\parse + normalize\\hash canonical key};
+        \node[disp] (d1) at (6.1,-1.05) {Dispatcher 1\\parse + normalize\\hash canonical key};
+        \node[matrix] (ringmx) at (9.2,0) {\textbf{SPSC Ring}\\\textbf{Matrix}\\[2pt]
+            2 dispatchers\\$\times$\\4 workers\\[2pt]
+            \scriptsize no shared\\enqueue lock};
+
+        \node[worker] (w0) at (12.6,2.25) {Worker 0\\round-robin drain};
+        \node[worker] (w1) at (12.6,0.75) {Worker 1\\round-robin drain};
+        \node[worker] (w2) at (12.6,-0.75) {Worker 2\\round-robin drain};
+        \node[worker] (w3) at (12.6,-2.25) {Worker 3\\round-robin drain};
+
+        \node[shard] (s0) at (16.0,2.25) {Flow shard 0\\\code{rte\_hash}};
+        \node[shard] (s1) at (16.0,0.75) {Flow shard 1\\\code{rte\_hash}};
+        \node[shard] (s2) at (16.0,-0.75) {Flow shard 2\\\code{rte\_hash}};
+        \node[shard] (s3) at (16.0,-2.25) {Flow shard 3\\\code{rte\_hash}};
+        \node[monitor] (stats) at (9.2,-3.55) {Stats / CLI / Dashboard\\counters + rule hits};
+
+        \draw[arrow] (src.east) -- (rx0.west);
+        \draw[arrow] (src.east) -- (rx1.west);
+        \draw[arrow] (rx0.east) -- (d0.west);
+        \draw[arrow] (rx1.east) -- (d1.west);
+        \draw[arrow] (d0.east) -- (ringmx.west);
+        \draw[arrow] (d1.east) -- (ringmx.west);
+
+        \draw[arrow] (ringmx.east) -- (w0.west);
+        \draw[arrow] (ringmx.east) -- (w1.west);
+        \draw[arrow] (ringmx.east) -- (w2.west);
+        \draw[arrow] (ringmx.east) -- (w3.west);
+
+        \draw[arrow] (w0.east) -- (s0.west);
+        \draw[arrow] (w1.east) -- (s1.west);
+        \draw[arrow] (w2.east) -- (s2.west);
+        \draw[arrow] (w3.east) -- (s3.west);
+        \draw[statarrow] (d1.south) .. controls (7.0,-2.35) and (8.0,-3.1) .. (stats.west);
+        \draw[statarrow] (w3.south west) .. controls (11.8,-2.9) and (10.6,-3.2) .. (stats.east);
+    \end{tikzpicture}
+    }
+    \caption{Architecture Diagram: multi-dispatcher, multi-worker và per-worker flow shard}
+    \label{fig:architecture_overview}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{
+    \begin{tikzpicture}[
+        node distance=0.55cm and 1.4cm,
+        block/.style={draw, rectangle, minimum height=1cm, text width=2.65cm, align=center, fill=blue!10, rounded corners, font=\scriptsize},
+        ring/.style={draw, circle, minimum size=1.15cm, fill=green!15, align=center, font=\scriptsize},
+        arrow/.style={->, >=stealth, thick}
+    ]
+        \node[ring] (ring0) {Ring 0\\SPSC};
+        \node[ring, below=of ring0] (ring1) {Ring 1\\SPSC};
+        \node[ring, below=of ring1] (ring2) {Ring 2\\SPSC};
+        \node[ring, below=of ring2] (ring3) {Ring 3\\SPSC};
+
+        \node[block, right=of ring0] (w0) {Worker 0\\Flow shard 0};
+        \node[block, right=of ring1] (w1) {Worker 1\\Flow shard 1};
+        \node[block, right=of ring2] (w2) {Worker 2\\Flow shard 2};
+        \node[block, right=of ring3] (w3) {Worker 3\\Flow shard 3};
+
+        \node[fit=(ring0)(ring3), inner sep=0pt] (rings) {};
+        \node[block, left=of rings] (disp) {RX/Dispatcher\\Parse + hash};
+        \node[block, left=of disp] (rx) {NIC / PCAP PMD\\\code{rte\_eth\_rx\_burst}};
+        \node[fit=(w0)(w3), inner sep=0pt] (workers) {};
+        \node[block, right=of workers, minimum height=2.5cm] (out) {TX / Free\\Action counters};
+        \node[block, below=0.8cm of workers] (stats) {Stats Collector\\CLI/Dashboard};
+
+        \draw[arrow] (rx) -- node[above, font=\scriptsize] {Burst} (disp);
+        \draw[arrow] (disp.east) -- (ring0.west);
+        \draw[arrow] (disp.east) -- (ring1.west);
+        \draw[arrow] (disp.east) -- (ring2.west);
+        \draw[arrow] (disp.east) -- (ring3.west);
+        \draw[arrow] (ring0) -- (w0);
+        \draw[arrow] (ring1) -- (w1);
+        \draw[arrow] (ring2) -- (w2);
+        \draw[arrow] (ring3) -- (w3);
+        \draw[arrow] (w0.east) -- (out.west);
+        \draw[arrow] (w1.east) -- (out.west);
+        \draw[arrow] (w2.east) -- (out.west);
+        \draw[arrow] (w3.east) -- (out.west);
+        \draw[arrow] (workers) -- (stats);
+    \end{tikzpicture}
+    }
+    \caption{Data Flow Diagram của pipeline xử lý packet đa worker}
+    \label{fig:pipeline_detailed}
+\end{figure}
+
+\subsection{Đối chiếu kiến trúc với implementation hiện tại}
+Bảng~\ref{tab:implementation_check} ghi lại các chi tiết đã được đối chiếu với
+mã nguồn hiện tại. Phần này đặc biệt quan trọng vì có hai chế độ dễ bị nhầm:
+\textbf{fixed-worker multi-dispatcher} dùng trong benchmark E2E và
+\textbf{dynamic scaling} dùng trong CLI runtime.
+
+\begin{table}[H]
+    \centering
+    \caption{Đối chiếu các chi tiết kiến trúc quan trọng với mã nguồn}
+    \label{tab:implementation_check}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{L{4.2cm} L{6.0cm} L{5.0cm}}
+        \toprule
+        \textbf{Chi tiết quan trọng} & \textbf{Implementation hiện tại} & \textbf{Ý nghĩa kiến trúc} \\
+        \midrule
+        \textbf{Worker selection trong fixed mode} & \code{ft\_select\_worker()} trả về \code{ft\_flow\_hash(key) \% active\_worker\_count}. & \textbf{Không dùng SourceIP modulo đơn giản}; hai chiều của flow dùng chung canonical key. \\
+        \textbf{Dynamic mode ownership} & Dispatcher dùng \code{ft\_owner\_table} để lookup/create owner theo flow key. & \textbf{Giữ owner ổn định khi CLI scale runtime}. \\
+        \textbf{Multi-dispatcher E2E} & \code{run\_e2e\_benchmark.sh} chạy \code{--rx-queues 2 --dispatchers 2 --fixed-workers --per-dispatcher-limit}. & \textbf{Tách RX/dispatch thành 2 lcore}, giảm bottleneck dispatcher đơn. \\
+        \textbf{Ring matrix dispatcher-worker} & \code{ft\_worker\_create()} tạo \code{inputs[i]} cho từng dispatcher với \code{RING\_F\_SP\_ENQ | RING\_F\_SC\_DEQ}. & \textbf{Mỗi dispatcher có SPSC ring riêng tới từng worker}, tránh shared enqueue lock. \\
+        \textbf{Worker drain strategy} & \code{ft\_worker\_loop()} round-robin các input ring bằng biến \code{next\_input}. & \textbf{Không để một dispatcher làm đói dispatcher khác}. \\
+        \textbf{Flow table ownership} & \code{ft\_worker\_create()} tạo \code{ft\_flow\_\%u} riêng cho từng worker. & \textbf{Worker sở hữu shard riêng}, không có shared flow-table lock trên fast path. \\
+        \textbf{Dynamic rebalance} & \code{rebalance\_dynamic\_flows()} pause, migrate flow, rebuild owner-map, resume. & \textbf{Scale up/down trong CLI không chỉ bật worker mới}, mà còn chuyển active flow sang owner mới. \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\subsection{Data Flow Diagram mức module}
+Ở mức module, packet không đi thẳng từ dispatcher tới action. Nó đi qua các
+bước nhỏ hơn: \textbf{parser tách header}, \textbf{direction resolver suy luận
+hướng}, \textbf{canonical key được tạo}, \textbf{dispatcher chọn owner},
+\textbf{worker xử lý flow và SPI}, cuối cùng \textbf{stats module thu thập
+counters}. Việc tách thành các module này giúp mỗi bước có boundary rõ ràng:
+parser không quyết định worker, dispatcher không cập nhật flow state, còn worker
+không phải biết packet đến từ RX queue nào.
+
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{
+\begin{tikzpicture}[node distance=8mm and 9mm, font=\small]
+  \node[process] (frames) {Ethernet frames\\NIC/PCAP};
+  \node[process, right=of frames] (rx) {RX module};
+  \node[process, right=of rx] (parse) {Packet parser};
+  \node[process, below=of parse] (dir) {Direction resolver};
+  \node[process, right=of parse] (key) {Canonical\\five-tuple};
+  \node[process, right=of key] (disp) {Dispatcher};
+  \node[store, right=of disp] (ring) {Worker rings};
+  \node[process, below=of ring] (worker) {Worker};
+  \node[store, left=of worker] (flow) {Flow table shard};
+  \node[process, right=of worker] (spi) {SPI engine};
+  \node[store, below=of worker] (counter) {Counters};
+  \node[process, below=of counter] (cli) {CLI/Dashboard\\Reports};
+  \node[store, below=of dir] (dcfg) {Direction CSV};
+  \node[store, below=of spi] (rules) {SPI CSV};
+
+  \draw[arrow] (frames) -- (rx);
+  \draw[arrow] (rx) -- (parse);
+  \draw[arrow] (parse) -- (key);
+  \draw[arrow] (parse) -- (dir);
+  \draw[arrow] (dir) -- (key);
+  \draw[arrow] (key) -- (disp);
+  \draw[arrow] (disp) -- (ring);
+  \draw[arrow] (ring) -- (worker);
+  \draw[arrow] (worker) -- (flow);
+  \draw[arrow] (flow) -- (worker);
+  \draw[arrow] (worker) -- (spi);
+  \draw[arrow] (spi) -- (worker);
+  \draw[arrow] (worker) -- (counter);
+  \draw[arrow] (counter) -- (cli);
+  \draw[arrow] (dcfg) -- (dir);
+  \draw[arrow] (rules) -- (spi);
+\end{tikzpicture}
+}
+\caption{Data Flow Diagram mức module}
+\label{fig:dfd}
+\end{figure}
+
+\subsection{Chiến lược lưu trữ trạng thái và phân vùng bộ nhớ}
+\textbf{Hệ thống không đặt toàn bộ flow state vào một bảng dùng chung}. Mỗi
+worker có một flow table riêng gồm \textbf{\code{rte\_hash}}, mảng
+\textbf{\code{ft\_flow\_entry\_t}} và \textbf{free-stack}. Dispatcher chỉ tạo
+work item và chọn worker, \textbf{không cập nhật flow entry}. Cách chia này làm
+giảm rõ rệt vùng dữ liệu cần đồng bộ, đồng thời khiến worker có thể xử lý packet
+theo batch mà không phải tranh chấp với worker khác.
+
+\begin{table}[H]
+    \centering
+    \caption{Phân vùng lưu trữ dữ liệu runtime}
+    \label{tab:mem_partitioning}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{L{3.8cm} L{3.8cm} L{7.0cm}}
+        \toprule
+        \textbf{Thành phần dữ liệu} & \textbf{Cấp phát/kiểu dữ liệu} & \textbf{Vai trò thiết kế} \\
+        \midrule
+        Packet Buffers & DPDK \code{rte\_mbuf} pool & Chứa packet nhận từ ethdev/PCAP PMD, được truyền bằng con trỏ qua pipeline. \\
+        Worker Rings & \code{rte\_ring} SPSC & Trao đổi work item từ dispatcher tới worker, hạn chế lock và contention. \\
+        Work Item Pool & Per-worker mempool & Cấp phát \code{ft\_work\_item\_t} chứa packet metadata và normalized key. \\
+        Flow Table Entries & Per-worker entry array & Lưu key, timestamp, action cache, rule id và counter hai chiều của flow. \\
+        Rule Store & Atomic ruleset pointer & Cho phép worker đọc ruleset hiện hành và control plane reload ruleset mới. \\
+        Stats Snapshot & Local counter + published atomic & Worker ghi local hot-path counter, CLI đọc bản publish định kỳ. \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\subsection{Cấu trúc Flow Table}
+\textbf{Entry flow hiện tại được định nghĩa gọn}, tập trung vào các trường cần
+thiết cho runtime: canonical key, thời điểm tạo, thời điểm thấy packet cuối,
+counter hai chiều, \code{rule\_id}, action cache và cờ \code{in\_use}. Đặc biệt,
+\textbf{action và \code{rule\_id} nằm trong flow entry} để SPI chỉ cần match một
+lần khi flow được tạo, sau đó packet tiếp theo dùng kết quả cache.
+
+\begin{verbatim}
+typedef struct {
+    ft_flow_key_t key;
+    uint64_t created_at;
+    uint64_t last_seen;
+    uint64_t packets[2];
+    uint64_t bytes[2];
+    uint16_t rule_id;
+    uint8_t action;
+    uint8_t in_use;
+} ft_flow_entry_t;
+\end{verbatim}
+
+\begin{figure}[H]
+\centering
+\resizebox{0.9\textwidth}{!}{
+\begin{tikzpicture}[node distance=8mm and 11mm, font=\small]
+  \node[process] (worker) {Worker N};
+  \node[store, right=of worker] (hash) {\code{rte\_hash}\\canonical key $\rightarrow$ entry};
+  \node[store, below=of hash] (array) {Entry array\\state/counter/action};
+  \node[store, below=of array] (free) {Free stack\\available slots};
+  \node[process, right=of array] (aging) {Aging cursor\\budgeted scan};
+  \node[decision, right=of aging] (timeout) {\code{now-last\_seen}\\$>$ timeout?};
+  \node[process, below=of timeout] (delete) {Delete flow\\update counters};
+  \node[process, above=of timeout] (keep) {Keep active};
+
+  \draw[arrow] (worker) -- (hash);
+  \draw[arrow] (hash) -- (array);
+  \draw[arrow] (free) -- (array);
+  \draw[arrow] (array) -- (aging);
+  \draw[arrow] (aging) -- (timeout);
+  \draw[arrow] (timeout) -- node[right]{Yes} (delete);
+  \draw[arrow] (timeout) -- node[right]{No} (keep);
+\end{tikzpicture}
+}
+\caption{Cấu trúc Flow Table theo từng worker shard}
+\label{fig:flowtable_memory}
+\end{figure}
+
+\subsection{Dispatcher Algorithm}
+\textbf{Dispatcher thực hiện ba nhiệm vụ trên hot path}: nhận burst,
+parse/normalize packet và chọn worker. Trong profile benchmark, dispatcher
+chạy ở \textbf{fixed-worker mode}; nghĩa là nó không cần owner-map động mà chọn
+worker trực tiếp bằng hash của canonical key:
+\[
+  worker\_id = hash(canonical\_flow\_key) \bmod active\_workers
+\]
+\textbf{Fixed-worker mode là đường benchmark chính} vì nó loại bỏ overhead của
+owner-map và phản ánh chi phí xử lý packet ổn định nhất. Ngược lại, với
+\textbf{dynamic mode}, dispatcher sử dụng owner-map để giữ flow đã tồn tại ở
+worker đã được gán trước đó. Khi CLI scale up/down, pipeline \textbf{tạm dừng
+dispatch}, \textbf{drain ring}, \textbf{pause worker}, \textbf{migrate active
+flow theo số worker mới}, \textbf{rebuild owner-map} rồi \textbf{resume}. Vì
+vậy dynamic scaling là tính năng runtime đúng nghĩa, nhưng không được trộn vào
+benchmark E2E fixed-worker để tránh làm nhiễu PPS.
+
+\begin{figure}[H]
+\centering
+\resizebox{0.78\textwidth}{!}{
+\begin{tikzpicture}[node distance=8mm and 9mm, font=\small]
+  \node[process] (rx) {RX burst};
+  \node[process, below=of rx] (parse) {Parse packet};
+  \node[decision, below=of parse] (valid) {IPv4\\TCP/UDP?};
+  \node[process, right=18mm of valid] (drop) {Free/drop\\mbuf};
+  \node[process, below=of valid] (norm) {Normalize\\canonical key};
+  \node[decision, below=of norm] (fixed) {Fixed\\workers?};
+  \node[process, below left=9mm and 10mm of fixed] (hash) {Hash key\\mod N};
+  \node[process, below right=9mm and 10mm of fixed] (owner) {Owner-map\\lookup/create};
+  \node[process, below=21mm of fixed] (ring) {Enqueue to\\worker ring};
+  \node[decision, below=of ring] (room) {Ring\\has room?};
+  \node[process, below left=9mm and 12mm of room] (enq) {Dispatch\\counter++};
+  \node[process, below right=9mm and 12mm of room] (rdrop) {Drop\\ring full};
+
+  \draw[arrow] (rx) -- (parse);
+  \draw[arrow] (parse) -- (valid);
+  \draw[arrow] (valid) -- node[above]{No} (drop);
+  \draw[arrow] (valid) -- node[left]{Yes} (norm);
+  \draw[arrow] (norm) -- (fixed);
+  \draw[arrow] (fixed) -- node[left]{Yes} (hash);
+  \draw[arrow] (fixed) -- node[right]{No} (owner);
+  \draw[arrow] (hash) -- (ring);
+  \draw[arrow] (owner) -- (ring);
+  \draw[arrow] (ring) -- (room);
+  \draw[arrow] (room) -- node[left]{Yes} (enq);
+  \draw[arrow] (room) -- node[right]{No} (rdrop);
+\end{tikzpicture}
+}
+\caption{Activity Diagram của logic dispatcher}
+\label{fig:activity_diag}
+\end{figure}
+
+\subsection{Flow Aging trong worker loop}
+\textbf{Đề bài mô tả một thread aging riêng}, nhưng project chọn cách khác:
+\textbf{aging được thực hiện ngay trong worker loop với budget định kỳ}. Lý do
+là flow table đã được shard theo worker; worker là owner duy nhất của entry nên
+việc xóa flow hết hạn bên trong worker giúp tránh cần RCU hoặc lock phức tạp
+giữa một aging thread chung và các worker. Đây là khác biệt có chủ ý giữa flow
+chart minh họa trong docx và implementation hiện tại.
+
+Mỗi worker có \textbf{\code{age\_cursor}}. Sau mỗi khoảng thời gian định kỳ,
+worker gọi \textbf{\code{ft\_flow\_table\_age()}} với budget cấu hình. Hàm này
+quét một phần entry array, so sánh \code{now - last\_seen} với timeout, xóa
+những entry hết hạn và cập nhật counter \code{deleted}/\code{timed\_out}.
+\textbf{Aging budget} bảo đảm timeout work không chiếm toàn bộ vòng lặp xử lý
+packet khi flow table lớn.
+
+\subsection{SPI Rule Engine và runtime reload}
+\textbf{SPI rule engine được chạy trên worker}. Khi flow mới được tạo, worker
+lấy ruleset hiện hành, match key với các luật theo precedence, lưu
+\textbf{\code{rule\_id}} và \textbf{\code{action}} vào entry. Với flow đã tồn
+tại, worker dùng \textbf{action cache} nên không scan rule list lại. Đây là tối
+ưu quan trọng vì file PCAP gốc có khoảng hai packet mỗi flow, còn benchmark
+\code{infinite\_rx=1} replay file đó để tạo thêm nhiều lượt lookup trên flow đã
+tồn tại; các packet sau cần đi qua đường nhanh hơn packet tạo flow đầu tiên để
+đo được lợi ích của flow state.
+
+\textbf{Runtime reload được thực hiện ở control plane}. Flow mới sau reload sẽ
+dùng ruleset mới; \textbf{flow cũ giữ action đã cache}. Chính sách này tránh
+thay đổi action giữa chừng của flow đang active và giúp reload không làm gián
+đoạn fast path.
+
+\subsection{Sequence Diagram xử lý packet và scale runtime}
+\begin{figure}[H]
+\centering
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[font=\small, node distance=1.0cm]
+  \node[block, minimum width=2.3cm] at (0,0) {Dispatcher};
+  \node[block, minimum width=2.3cm] at (3,0) {Parser};
+  \node[block, minimum width=2.3cm] at (6,0) {Worker};
+  \node[block, minimum width=2.3cm] at (9,0) {Flow Table};
+  \node[block, minimum width=2.3cm] at (12,0) {SPI};
+  \node[block, minimum width=2.3cm] at (15,0) {Stats/CLI};
+  \foreach \x in {0,3,6,9,12,15} {
+    \draw[lifeline] (\x,-0.45) -- (\x,-7.2);
+  }
+
+  \draw[arrow] (0,-1.0) -- node[above]{parse mbuf} (3,-1.0);
+  \draw[arrow] (3,-1.55) -- node[above]{canonical key} (0,-1.55);
+  \draw[arrow] (0,-2.1) -- node[above]{enqueue ring} (6,-2.1);
+  \draw[arrow] (6,-2.65) -- node[above]{lookup/create} (9,-2.65);
+  \draw[arrow] (9,-3.2) -- node[above]{new or cached state} (6,-3.2);
+  \draw[arrow] (6,-3.75) -- node[above]{match if new flow} (12,-3.75);
+  \draw[arrow] (12,-4.3) -- node[above]{action/rule id} (6,-4.3);
+  \draw[arrow] (6,-4.85) -- node[above]{publish counters} (15,-4.85);
+
+  \draw[decorate, decoration={brace, amplitude=5pt}, thick]
+    (0.1,-5.55) -- (14.9,-5.55)
+    node[midway, below=5pt]{Dynamic scaling: flush queues, pause workers, migrate active flows, rebuild owner-map, resume};
+\end{tikzpicture}
+}
+\caption{Sequence Diagram của fast path và nhánh dynamic scaling}
+\label{fig:sequence_diag}
+\end{figure}
+
+\subsection{Giao diện giám sát realtime}
+\textbf{CLI không phải wrapper chạy benchmark}. Nó là \textbf{control plane nhỏ
+cho runtime PCAP/NIC mode}. Khi bật \code{--cli}, pipeline không tự in dòng
+live liên tục để người dùng vẫn nhập lệnh bình thường; người vận hành chủ động
+gọi lệnh quan sát hoặc scale. Điều này tách rõ hai mục tiêu: \textbf{benchmark
+được chạy riêng bằng \code{make benchmark-e2e}}, còn \textbf{CLI dùng để nhìn
+thấy trạng thái realtime và điều khiển runtime}. Các lệnh quan trọng gồm:
+\begin{itemize}
+    \item \textbf{\code{show statistics}}: hiển thị counter tổng như dispatched,
+    processed, bytes, forwarded, dropped, active/created/deleted flow và rule
+    hit.
+    \item \textbf{\code{show worker}}: hiển thị bảng trạng thái từng worker, lcore,
+    queue, packet, byte, drop và active flow.
+    \item \textbf{\code{show worker N}}: đi sâu vào một worker core, gồm traffic class
+    HTTP, HTTPS, DNS, TCP, UDP, OTHER và direction counters.
+    \item \textbf{\code{show traffic}}: tổng hợp direction, traffic class và rule-hit
+    table.
+    \item \textbf{\code{show dashboard}}: dashboard ANSI có graph Active Flow,
+    Throughput và Packet Drop.
+    \item \textbf{\code{scale up/down}}: thay đổi số active worker trong dynamic
+    mode và \textbf{rebalance flow đang active}.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\safeincludegraphics[width=0.88\textwidth]{dashboard_realtime.png}{Ảnh chụp màn hình cần bổ sung sau: chạy \texttt{scripts/run\_cli\_pcap.sh}, nhập \texttt{show dashboard}, chụp phần bảng realtime và ba graph Active Flow/Throughput/Packet Drop.}
+\caption{Ảnh dashboard realtime}
+\label{fig:dashboard-placeholder}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\safeincludegraphics[width=0.88\textwidth]{worker_realtime.png}{Ảnh chụp màn hình cần bổ sung sau: chạy \texttt{scripts/run\_cli\_pcap.sh}, nhập \texttt{show dashboard}, chụp phần bảng realtime và ba graph Active Flow/Throughput/Packet Drop.}
+\caption{Ảnh worker realtime}
+\label{fig:dashboard-placeholder}
+\end{figure}
+
+\subsection{Các tham số dòng lệnh và cấu hình}
+\begin{table}[H]
+    \centering
+    \caption{Các tham số runtime quan trọng}
+    \label{tab:cli_args}
+    \footnotesize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.16}
+    \begin{tabular}{L{2.6cm} L{4.25cm} L{5.95cm}}
+        \toprule
+        \textbf{Tham số} & \textbf{Mặc định/ý nghĩa} & \textbf{Mô tả} \\
+        \midrule
+        \code{--mode ethdev} & Ethdev path & Chạy qua DPDK ethdev, gồm NIC thật hoặc PCAP PMD. \\
+        \code{--port} & 0 & DPDK port id cần sử dụng. \\
+        \code{--workers} & 4 trong benchmark & Số worker active ban đầu. \\
+        \code{--max-workers} & Bằng workers trong fixed benchmark & Số worker được launch sẵn để scale runtime. \\
+        \code{--rx-queues} & 1 hoặc 2 & Số RX queue; multi-RX dùng trong profile 2d4w. \\
+        \code{--dispatchers} & 1 hoặc 2 & Số dispatcher; \code{--dispatchers > 1} yêu cầu fixed-worker mode. \\
+        \code{--fixed-workers} & Bật trong benchmark & Tắt dynamic owner-map, hash flow trực tiếp tới worker. \\
+        \code{--cli} & Tắt mặc định & Bật CLI tương tác. \\
+        \code{--dashboard} & Tắt mặc định & Render dashboard ANSI theo interval. \\
+        \code{--rules} & \code{config/spi\_rules.csv} & Đường dẫn file luật SPI. \\
+        \shortstack[l]{\code{--direction}\\\code{-rules}} & \shortstack[l]{\code{config/}\\\code{direction\_rules.csv}} & Đường dẫn rule xác định tenant/direction. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\newpage
+\chapter{Kết quả thực hiện và đánh giá}
+
+\section{Môi trường thực nghiệm}
+\textbf{Benchmark gần nhất được đo trên laptop}
+\textbf{Intel Core i5-8250U}, 4 physical cores / 8 logical threads, một NUMA
+node. DPDK version là \textbf{25.11.1}, compiler \textbf{GCC 16.1.1} với cờ tối
+ưu \textbf{\code{-O3}}. Hugepages được cấu hình ở mức \textbf{1GB tổng dung
+lượng theo dạng 512 pages kích thước 2MB}, mount tại \textbf{\code{/mnt/huge}}.
+Lệnh benchmark truyền \textbf{\code{--huge-dir /mnt/huge}}.
+
+Benchmark vẫn giữ \code{--in-memory} để tránh DPDK multiprocess socket trong
+môi trường laptop/sandbox. Vì DPDK poll mode giữ lcore bận trong
+measured window, trường CPU trong CSV được hiểu là \textbf{tỉ lệ lcore được cấp
+phát cho EAL so với 8 logical CPU}, chưa phải OS-sampled utilization.
+
+\section{Ma trận kịch bản kiểm thử chức năng}
+\textbf{Unit test hiện tại đạt 127/127 case}. Bộ test không chỉ kiểm từng hàm
+nhỏ mà còn kiểm các invariant quan trọng của pipeline: \textbf{hai chiều UL/DL
+có chung canonical key}, \textbf{direction resolver đúng cho VLAN/subnet},
+\textbf{rule precedence}, \textbf{flow lookup không tạo trùng}, \textbf{timeout
+cập nhật counter}, \textbf{table-full behavior} và \textbf{phân phối 100.000
+flow lên bốn worker}.
+
+\begin{table}[H]
+    \centering
+    \caption{Ma trận kiểm thử chức năng}
+    \label{tab:test_matrix}
+    \small
+    \setlength{\tabcolsep}{4pt}
+    \renewcommand{\arraystretch}{1.16}
+    \begin{tabular}{C{1.35cm} L{6.25cm} L{3.0cm} C{2.05cm}}
+        \toprule
+        \textbf{Mã} & \textbf{Mục tiêu kiểm thử} & \textbf{Artifact/Lệnh} & \textbf{Trạng thái} \\
+        \midrule
+        TC-01 & Parse Ethernet/VLAN/IPv4/TCP/UDP và five-tuple & \code{make test} & PASSED \\
+        TC-02 & Direction resolver theo VLAN, subnet, ingress port và fallback unknown & \code{make test} & PASSED \\
+        TC-03 & Canonical key cho hai chiều uplink/downlink & \code{make test} & PASSED \\
+        TC-04 & Flow create, lookup, delete, timeout và capacity & \code{make test} & PASSED \\
+        TC-05 & SPI wildcard match, precedence và default action & \code{make test} & PASSED \\
+        TC-06 & Cân bằng 100.000 flow trên bốn worker & \code{make test} & PASSED \\
+        TC-07 & Traffic class HTTP, HTTPS, DNS, TCP, UDP và OTHER & \code{make test} & PASSED \\
+        TC-08 & PCAP PMD smoke test 10 packet VLAN/TCP & Runtime smoke & PASSED \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\section{Phương pháp benchmark hiệu năng}
+\textbf{Benchmark end-to-end được chạy qua target}:
+\begin{verbatim}
+sudo scripts/setup_hugepages_if_needed.sh --mb 1024 --mount-point /mnt/huge
+make benchmark-e2e
+\end{verbatim}
+
+\textbf{Script \code{scripts/run\_e2e\_benchmark.sh} kiểm tra hugepages trước
+khi chạy}, sinh PCAP từ \code{SPI\_DPI\_rule.xlsx}, chạy \textbf{2 warmup
+process bị bỏ qua}, sau đó chạy \textbf{5 measured process} và lấy
+\textbf{median PPS}. Workload mặc định sinh file PCAP gốc gồm
+\textbf{100.000 flow} và \textbf{200.000 packet}; khi chạy benchmark, script
+truyền giới hạn xử lý \textbf{\code{--packets 2000000}} cho ứng dụng. PCAP PMD
+bật \textbf{\code{infinite\_rx=1}} để replay file gốc nhiều vòng, giúp measured
+window dài và ổn định hơn, nhưng run vẫn có điểm dừng rõ ràng.
+
+Công thức tính throughput:
+\[
+  PPS = \frac{processed\_packets}{seconds}
+\]
+
+Hai profile chính được đo:
+\begin{itemize}
+    \item \textbf{\code{pcap-spi-4w-huge}}: một RX queue, một dispatcher, bốn worker.
+    \item \textbf{\code{pcap-spi-mq-2d4w-huge}}: \textbf{hai RX queue, hai
+    dispatcher, bốn worker}; mỗi dispatcher đọc một PCAP shard và có
+    \textbf{ring riêng tới từng worker}.
+\end{itemize}
+
+\section{Kết quả benchmark}
+\begin{table}[H]
+    \centering
+    \caption{Số liệu benchmark end-to-end từ \code{e2e\_benchmark\_results.csv}}
+    \label{tab:bench_perf}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{L{4.2cm} C{1.5cm} C{1.8cm} C{1.8cm} C{1.8cm} C{1.8cm} C{1.8cm}}
+        \toprule
+        \textbf{Profile} & \textbf{Workers} & \textbf{RXQ/Disp.} & \textbf{Packets} & \textbf{Processed} & \textbf{Dropped} & \textbf{Throughput} \\
+        \midrule
+        \code{pcap-spi-4w-huge} & 4/4 & 1/1 & 2.000.000 & 2.000.000 & 0 & \mpps{6,75} \\
+        \code{pcap-spi-mq-2d4w-huge} & 4/4 & 2/2 & 2.000.000 & 2.000.000 & 0 & \mpps{10,26} \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\begin{table}[H]
+    \centering
+    \caption{Các trường hiệu năng bắt buộc theo đề bài}
+    \label{tab:required_perf}
+    \footnotesize
+    \setlength{\tabcolsep}{3pt}
+    \renewcommand{\arraystretch}{1.16}
+    \begin{tabular}{L{4.05cm} C{2.05cm} C{2.35cm} C{2.25cm} C{2.45cm}}
+        \toprule
+        \textbf{Profile} &
+        \shortstack{\textbf{Max active}\\\textbf{flows}} &
+        \shortstack{\textbf{Flow create}\\\textbf{rate}} &
+        \shortstack{\textbf{Delete/}\\\textbf{timeout rate}} &
+        \shortstack{\textbf{CPU core}\\\textbf{usage}} \\
+        \midrule
+        \code{pcap-spi-4w-huge} & 100.000 & \mflows{0,34} & 0/s & 5 lcores, 62,50\% \\
+        \code{pcap-spi-mq-2d4w-huge} & 100.000 & \mflows{0,51} & 0/s & 7 lcores, 87,50\% \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+Các bảng trên đã bao quát đủ ba thông tin benchmark cần dùng trong báo cáo:
+\textbf{throughput toàn pipeline}, \textbf{flow create rate} và
+\textbf{lcore allocation}. \textbf{Flow create rate} được tính bằng số flow mới
+chia cho thời gian của toàn median run; với workload replay 2.000.000 packet,
+100.000 flow chỉ được tạo ở vòng đầu, còn các vòng sau chủ yếu đo lookup/cache
+trên flow đã tồn tại. Phần phân tích dưới đây tập trung vào nguyên nhân kiến
+trúc của chênh lệch giữa hai profile.
+
+\section{Phân tích kết quả}
+\textbf{Profile multi-dispatcher \code{pcap-spi-mq-2d4w-huge} đạt \mpps{10,26}},
+cao hơn khoảng \textbf{51,9\%} so với profile single-dispatcher
+\code{pcap-spi-4w-huge}. Chênh lệch này đến trực tiếp từ kiến trúc:
+\textbf{single-dispatcher} buộc một lcore chịu toàn bộ chi phí RX burst, đọc
+PCAP PMD, parse header, resolve direction, normalize key, chọn worker và enqueue
+ring; trong khi \textbf{multi-dispatcher/multi-RX} chia phần RX/dispatch thành
+\textbf{hai lcore độc lập}, mỗi lcore đọc một PCAP shard riêng và đẩy packet
+vào \textbf{ring riêng tới từng worker}. Worker không bị chia sẻ flow table,
+vì vậy việc tăng dispatcher không làm xuất hiện shared flow-table lock mới.
+
+\textbf{Tỷ lệ dropped bằng 0} ở cả hai profile cho thấy ring/mempool sizing hiện
+tại đủ cho workload \textbf{2.000.000 packet}. \textbf{Active flow đạt đúng
+100.000 flow}, nghĩa là dataset đã tạo đủ cardinality mong muốn và
+\code{--per-dispatcher-limit} đã giữ mỗi dispatcher xử lý đúng phần shard của
+mình khi PCAP PMD bật \code{infinite\_rx=1}. \textbf{Flow delete/timeout bằng 0}
+vì benchmark throughput vẫn kết thúc trước timeout 5 giây; đây là đặc tính của
+bài đo PPS ngắn trên PCAP replay, không phải bằng chứng rằng aging không hoạt
+động.
+
+Kết quả cần được đọc đúng phạm vi. Đây là benchmark trên laptop, chạy PCAP PMD
+và measured window ngắn. Nếu chuyển sang server/NIC thật, các yếu tố như
+\textbf{RSS hardware}, \textbf{PCIe}, \textbf{NUMA locality}, \textbf{CPU
+governor}, \textbf{turbo boost}, \textbf{memory bandwidth} và \textbf{lcore
+isolation} sẽ ảnh hưởng đáng kể. Vì vậy báo cáo không khẳng định line-rate vật
+lý, mà khẳng định project đã có \textbf{quy trình đo end-to-end có warmup,
+hugepages, PCAP workload rõ ràng và median run}.
+
+\section{Hướng dẫn chạy nhanh}
+Build và unit test:
+\begin{verbatim}
+make -j
+make test
+\end{verbatim}
+
+Benchmark end-to-end:
+\begin{verbatim}
+sudo scripts/setup_hugepages_if_needed.sh --mb 1024 --mount-point /mnt/huge
+make benchmark-e2e
+\end{verbatim}
+
+CLI realtime với PCAP PMD:
+\begin{verbatim}
+scripts/run_cli_pcap.sh
+\end{verbatim}
+
+Trong CLI có thể dùng:
+\begin{verbatim}
+show statistics | show worker | show worker 0 | show traffic
+show dashboard | scale up | scale down | reload | quit
+\end{verbatim}
+
+\newpage
+\chapter{Kết luận}
+
+\section{Đóng góp khoa học và thực tiễn của dự án}
+\textbf{Dự án FlowTable đã hiện thực một pipeline DPDK đầy đủ cho bài toán quản
+lý flow và phân tải worker}. Kết quả không chỉ dừng ở cấu trúc flow table mà
+còn bao gồm \textbf{đường packet input từ NIC/PCAP}, \textbf{parser L2--L4},
+\textbf{direction resolver}, \textbf{canonical flow key}, \textbf{dispatcher},
+\textbf{ring}, \textbf{worker shard}, \textbf{SPI rule cache},
+\textbf{statistics}, \textbf{CLI/dashboard} và \textbf{benchmark có dữ liệu đầu
+vào được sinh từ workbook rule}.
+
+Các đóng góp thực tiễn nổi bật gồm:
+\begin{itemize}
+    \item \textbf{Chuyển bài toán flow affinity} từ ví dụ \code{SourceIP \% N}
+    sang \textbf{hash canonical key}, giúp hai chiều của cùng một phiên đi về
+    cùng worker.
+    \item \textbf{Tách flow table thành shard theo worker}, tránh
+    \textbf{shared flow-table lock} trên hot path.
+    \item \textbf{Đánh giá và xử lý bottleneck ở dispatcher}: báo cáo so sánh
+    profile \textbf{single-dispatcher/multi-worker} với
+    \textbf{multi-dispatcher/multi-worker}. Kết quả cho thấy khi chỉ tăng số
+    worker, một dispatcher vẫn phải gánh toàn bộ RX burst, parse, normalize và
+    enqueue ring; cấu hình \textbf{multi-dispatcher/multi-RX} chia phần
+    RX/dispatch sang nhiều lcore, nhờ đó tận dụng worker shard tốt hơn.
+    \item \textbf{Tối ưu SPI bằng action cache}: match khi tạo flow và cache
+    action trong entry.
+    \item \textbf{Bổ sung runtime CLI} có khả năng quan sát từng worker core và
+    điều khiển \textbf{scale up/down trong dynamic mode}.
+    \item \textbf{Đo benchmark end-to-end với hugepages, warmup, median} và
+    workload \textbf{100.000 flow, 2.000.000 packet xử lý từ PCAP gốc
+    200.000 packet replay} thay vì một phép đo rời rạc ngoài pipeline.
+\end{itemize}
+
+\section{Hạn chế kỹ thuật hiện tại}
+Một số giới hạn vẫn còn tồn tại và cần được hiểu đúng:
+\begin{itemize}
+    \item \textbf{Benchmark hiện tại chạy PCAP PMD trên laptop}, chưa đo NIC
+    line-rate hoặc packet loss vật lý trên server chuyên dụng.
+    \item \textbf{CPU core usage trong CSV là lcore allocation của EAL command},
+    chưa phải OS-sampled utilization bằng \code{pidstat} hoặc \code{perf}.
+    \item \textbf{Chưa có latency p50/p99}, chưa có aging pressure test chạy đủ
+    lâu để tạo flow timeout/delete rate khác 0.
+    \item \textbf{Dynamic scaling đã có trong CLI}, nhưng không dùng trong
+    benchmark fixed-worker vì rebalance owner-map có thể làm nhiễu kết quả PPS.
+    \item \textbf{NUMA awareness đã có ở mức socket-aware allocation}, nhưng
+    laptop một NUMA node chưa đủ để chứng minh lợi ích local/remote NUMA.
+\end{itemize}
+
+\section{Hướng phát triển và lộ trình tương lai}
+Để đưa FlowTable gần hơn với môi trường production data plane, các hướng phát
+triển tiếp theo gồm:
+\begin{enumerate}
+    \item \textbf{Đo trên NIC thật với RSS:} Cấu hình RSS để nhiều RX queue nhận
+    lưu lượng song song từ NIC, sau đó so sánh với PCAP PMD hiện tại.
+    \item \textbf{Bổ sung latency benchmark:} Thu p50, p95, p99 latency bằng
+    traffic generator hoặc timestamp trong controlled environment.
+    \item \textbf{Aging pressure benchmark:} Tạo workload chạy qua timeout để
+    đo delete/timed-out flow rate và ảnh hưởng của aging budget lên PPS.
+    \item \textbf{OS-level profiling:} Chạy \code{perf stat}, \code{perf record}
+    hoặc \code{pidstat -t} song song benchmark để có CPU utilization và cache
+    miss thật.
+    \item \textbf{Tối ưu sâu worker loop:} Đánh giá prefetch, batch size, ring
+    drain strategy và kích thước flow entry trên tập flow lớn hơn 100.000.
+\end{enumerate}
+
+\section{Kết luận}
+\textbf{FlowTable hiện đã đáp ứng các yêu cầu cốt lõi và phần lớn yêu cầu nâng
+cao của mini project}. \textbf{Kiến trúc pipeline} giúp tách RX/dispatch khỏi
+worker processing; \textbf{flow table shard theo worker} giúp giữ trạng thái
+cục bộ; \textbf{SPI action cache} giảm chi phí trên packet sau của cùng flow;
+\textbf{CLI/dashboard} cung cấp khả năng quan sát realtime; benchmark
+end-to-end cho thấy \textbf{profile multi-dispatcher đạt \mpps{10,26}} trên
+workload \textbf{100.000 flow, 2.000.000 packet xử lý} mà \textbf{không drop
+packet}.
+
+Quan trọng hơn, project đã hình thành được \textbf{một nền tảng data plane có
+thể tiếp tục mở rộng}: từ PCAP PMD sang NIC thật, từ single NUMA sang
+multi-NUMA, từ PPS sang latency, và từ benchmark laptop sang lab server. Đây là
+hướng phát triển tự nhiên nếu tiếp tục đưa FlowTable từ mini project thành một
+prototype gần với hệ thống mạng lõi thực tế.
+
+\newpage
+\begin{thebibliography}{99}
+    \bibitem{dpdkdoc} DPDK Development Team, \textit{Data Plane Development Kit Documentation}, Available: \url{https://doc.dpdk.org/}.
+\end{thebibliography}
+\end{document}

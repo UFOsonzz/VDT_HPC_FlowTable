@@ -1,129 +1,111 @@
-#include "port.h"
+#include "pipeline_internal.h"
 
 #include <stdio.h>
 #include <string.h>
 
-#include <rte_ethdev.h>
 #include <rte_errno.h>
-#include <rte_lcore.h>
-#include <rte_mbuf.h>
+#include <rte_ethdev.h>
+#include <rte_mempool.h>
 
-// kich thuoc hang doi rx, tx
-#define RX_DESC_COUNT 1024
-#define TX_DESC_COUNT 1024
+/* Configure RX/TX queues, mempool, RSS, and start the selected ethdev port. */
+int ft_configure_ethdev(uint16_t port_id,
+                        uint16_t rx_queue_count,
+                        uint16_t worker_count,
+                        uint32_t requested_mbuf_count,
+                        bool tx_enabled,
+                        struct rte_mempool **mbuf_pool) {
+    struct rte_eth_dev_info info;
+    struct rte_eth_conf port_conf;
+    uint16_t rx_desc = 1024;
+    uint16_t tx_desc = 1024;
+    uint16_t tx_queues = tx_enabled ? worker_count : 1;
+    int socket_id = rte_eth_dev_socket_id(port_id);
+    uint32_t minimum_mbuf_count;
+    uint32_t mbuf_count;
+    int result;
 
-// kich thuoc pool tren ram, kich thuoc moi core xin cho cache
-// pool_size > rx + tx + so core * cache + phan danh cho poll mode
-#define MBUF_POOL_SIZE 8192
-#define MBUF_CACHE_SIZE 256
-
-int app_port_init(app_port_t *port, const app_config_t *config) {
-    struct rte_eth_conf eth_conf; // struct config card mang
-    struct rte_eth_dev_info dev_info; // struct chua thong tin cau hinh card
-    int socket_id, ret; // id chip cpu, ma tra ve
-
-    memset(port, 0, sizeof(*port)); // xoa vung nho port de ghi app_config ghi vao
-    memset(&eth_conf, 0, sizeof(eth_conf)); // eth_conf ko phai con tro ma la chinh noi dung -> phai bien thanh con tro de memset
-
-    port->port_id = config->port_id;
-    port->rx_queue_id = config->rx_queue_id;
-    port->tx_queue_id = config->tx_queue_id;
-
-    if (!rte_eth_dev_is_valid_port(port->port_id)) {
-        uint16_t nb_ports = rte_eth_dev_count_avail();
-
-        fprintf(stderr,
-                "invalid dpdk port_id=%u (available DPDK ports: %u)\n",
-                port->port_id,
-                nb_ports);
-        if (nb_ports == 0) {
-            fprintf(stderr,
-                    "No DPDK ethdev is available. For a real NIC, bind or allowlist a DPDK-compatible device; "
-                    "for pcap input, use the net_pcap vdev script.\n");
-        }
+    if (!rte_eth_dev_is_valid_port(port_id))
         return -1;
-    }
-
-    socket_id = rte_eth_dev_socket_id(port->port_id); // dep nhat la dung duoc cpu tren socket co card mang noi toi
     if (socket_id < 0)
-        socket_id = rte_socket_id(); // neu ko duoc thi lay cpu dang thuc hien dong lenh nay
-
-    ret = rte_eth_dev_info_get(port->port_id, &dev_info); // doc thong tin cong mang nap vao dev_info
-    if (ret != 0) {
-        fprintf(stderr, "rte_eth_dev_info_get failed: %s\n", rte_strerror(-ret));
-        return ret;
+        socket_id = rte_socket_id();
+    memset(&port_conf, 0, sizeof(port_conf));
+    result = rte_eth_dev_info_get(port_id, &info);
+    if (result != 0) {
+        fprintf(stderr, "rte_eth_dev_info_get: %s (%d)\n",
+                rte_strerror(-result), result);
+        return result;
     }
-
-    ret = rte_eth_dev_configure(port->port_id, 1, 1, &eth_conf); // 1 rx, 1 tx
-    if (ret != 0) {
-        fprintf(stderr, "rte_eth_dev_configure failed: %s\n", rte_strerror(-ret));
-        return ret;
-    }
-
-    // khoi tao rx mbuf pool
-    port->mbuf_pool = rte_pktmbuf_pool_create(
-        "rx_mbuf_pool", // ten pool
-        MBUF_POOL_SIZE,
-        MBUF_CACHE_SIZE,
-        0, // kich thuoc vung nho private (ko dung)
-        RTE_MBUF_DEFAULT_BUF_SIZE,
-        socket_id // tao pool ram o cpu socket da tim duoc
-    );
-
-    if (port->mbuf_pool == NULL) {
-        fprintf(stderr, "rte_pktmbuf_pool_create failed: %s\n", rte_strerror(rte_errno));
+    if (rx_queue_count > info.max_rx_queues) {
+        fprintf(stderr, "Requested %u RX queues, but port %u supports %u\n",
+                rx_queue_count, port_id, info.max_rx_queues);
         return -1;
     }
+    if (tx_queues > info.max_tx_queues) {
+        fprintf(stderr, "Requested %u TX queues, but port %u supports %u\n",
+                tx_queues, port_id, info.max_tx_queues);
+        return -1;
+    }
+    if (rx_queue_count > 1) {
+        uint64_t rss_hf = RTE_ETH_RSS_IP | RTE_ETH_RSS_TCP | RTE_ETH_RSS_UDP;
 
-    ret = rte_eth_rx_queue_setup(
-        port->port_id,
-        port->rx_queue_id,
-        RX_DESC_COUNT,
-        socket_id, 
-        &dev_info.default_rxconf, // cau hinh mac dinh cua driver card mang
-        port->mbuf_pool // cho phep queue dung mempool nay
-    );
-
-    if (ret != 0) {
-        fprintf(stderr, "rte_eth_dev_rx_queue_setup failed: %s\n", rte_strerror(-ret));
-        return ret;
+        rss_hf &= info.flow_type_rss_offloads;
+        if (rss_hf != 0) {
+            port_conf.rxmode.mq_mode = RTE_ETH_MQ_RX_RSS;
+            port_conf.rx_adv_conf.rss_conf.rss_hf = rss_hf;
+        } else {
+            fprintf(stderr, "Port %u does not advertise RSS offloads;"
+                    " RX queue distribution depends on the PMD\n",
+                    port_id);
+        }
     }
 
-    ret = rte_eth_tx_queue_setup(
-        port->port_id,
-        port->tx_queue_id,
-        TX_DESC_COUNT,
-        socket_id,
-        &dev_info.default_txconf
-    );
-
-    if (ret != 0) {
-        fprintf(stderr, "rte_eth_tx_queue_setup failed: %s\n", rte_strerror(-ret));
-        return ret;
+    /* Configure queues before allocating workers so port errors fail early. */
+    result = rte_eth_dev_configure(port_id, rx_queue_count, tx_queues,
+                                   &port_conf);
+    if (result != 0) {
+        fprintf(stderr, "rte_eth_dev_configure: %s (%d)\n",
+                rte_strerror(-result), result);
+        return result;
     }
-
-    ret = rte_eth_dev_start(port->port_id); // start 
-    if (ret != 0) {
-        fprintf(stderr, "rte_eth_dev_start failed: %s\n", rte_strerror(-ret));
-        return ret;
+    rte_eth_dev_adjust_nb_rx_tx_desc(port_id, &rx_desc, &tx_desc);
+    minimum_mbuf_count = 8192U * rx_queue_count;
+    mbuf_count = requested_mbuf_count == 0 ? minimum_mbuf_count :
+        requested_mbuf_count;
+    if (mbuf_count < minimum_mbuf_count)
+        mbuf_count = minimum_mbuf_count;
+    *mbuf_pool = rte_pktmbuf_pool_create("ft_rx_mbuf_pool",
+                                         mbuf_count, 256, 0,
+                                         RTE_MBUF_DEFAULT_BUF_SIZE,
+                                         socket_id);
+    if (*mbuf_pool == NULL) {
+        fprintf(stderr, "rte_pktmbuf_pool_create: %s\n",
+                rte_strerror(rte_errno));
+        return -1;
     }
-
-    // promiscuous mode
-    if (config->promiscuous)
-        rte_eth_promiscuous_enable(port->port_id);
-
-    printf("Port %u started on socket %d\n", port->port_id, socket_id);
+    for (uint16_t i = 0; i < rx_queue_count; i++) {
+        result = rte_eth_rx_queue_setup(port_id, i, rx_desc, socket_id,
+                                        &info.default_rxconf, *mbuf_pool);
+        if (result != 0) {
+            fprintf(stderr, "rte_eth_rx_queue_setup queue=%u: %s (%d)\n",
+                    i, rte_strerror(-result), result);
+            return result;
+        }
+    }
+    for (uint16_t i = 0; i < tx_queues; i++) {
+        result = rte_eth_tx_queue_setup(port_id, i, tx_desc, socket_id,
+                                        &info.default_txconf);
+        if (result != 0) {
+            fprintf(stderr, "rte_eth_tx_queue_setup: %s (%d)\n",
+                    rte_strerror(-result), result);
+            return result;
+        }
+    }
+    result = rte_eth_dev_start(port_id);
+    if (result != 0) {
+        fprintf(stderr, "rte_eth_dev_start: %s (%d)\n",
+                rte_strerror(-result), result);
+        return result;
+    }
+    rte_eth_promiscuous_enable(port_id);
     return 0;
-}
-
-void app_port_close(app_port_t *port) {
-    if (rte_eth_dev_is_valid_port(port->port_id)) {
-        rte_eth_dev_stop(port->port_id);
-        rte_eth_dev_close(port->port_id);
-    }
-
-    if (port->mbuf_pool != NULL) {
-        rte_mempool_free(port->mbuf_pool);
-        port->mbuf_pool = NULL; // chong mem leak
-    }
 }

@@ -1,0 +1,943 @@
+\documentclass[12pt,a4paper,twoside]{report}
+\usepackage[vietnamese]{babel}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{fontspec}
+\setmainfont{Liberation Serif}
+\usepackage{newtxmath}
+\emergencystretch=1em % Resolve overfull hbox warnings
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{shapes,shapes.geometric,arrows,decorations.pathreplacing,positioning,calc,fit}
+
+\usepackage{geometry}
+\geometry{
+  a4paper,
+  inner=30mm,
+  outer=20mm,
+  top=20mm,
+  bottom=20mm
+}
+
+\usepackage{setspace}
+\setstretch{1.5}
+
+\usepackage{indentfirst}
+\setlength{\parindent}{1cm}
+\setlength{\parskip}{4pt}
+
+\usepackage{enumitem}
+\setlist{nosep}
+
+% Compact Float and Caption Spacings from Reference
+\usepackage{caption}
+\usepackage{etoolbox}
+\usepackage{float}
+\captionsetup[table]{font=it, labelfont={bf,up}, labelsep=colon, name=Bảng, skip=4pt, position=top}
+\captionsetup[figure]{font=it, labelfont={bf,up}, labelsep=colon, name=Hình, justification=centering, position=bottom, skip=6pt}
+\AtBeginEnvironment{figure}{
+  \setlength{\belowcaptionskip}{-15pt}
+}
+
+\setlength{\textfloatsep}{1.1\baselineskip plus 2pt minus 2pt} 
+\setlength{\intextsep}{1.1\baselineskip plus 2pt minus 2pt}
+\setlength{\floatsep}{1.1\baselineskip plus 2pt minus 2pt}
+\setlength{\abovecaptionskip}{0.2\baselineskip plus 1pt}
+
+% Enable more flexible page layouts to avoid bottom page gaps
+\raggedbottom
+\renewcommand{\topfraction}{0.85}
+\renewcommand{\bottomfraction}{0.85}
+\renewcommand{\textfraction}{0.15}
+\renewcommand{\floatpagefraction}{0.8}
+
+% Microtype for better typography and line-saving justification (avoiding footnotes patch warning)
+\usepackage[nopatch=footnote]{microtype}
+
+\usepackage{titlesec}
+% Center chapter titles and format them as CHƯƠNG N. TITLE in uppercase
+\renewcommand{\thechapter}{\Roman{chapter}}
+\titleformat{\chapter}[hang]
+  {\normalfont\normalsize\bfseries\centering}
+  {\thechapter.\ }
+  {10pt}
+  {\MakeUppercase}
+\titlespacing*{\chapter}{0pt}{-40pt}{10pt}
+\titlespacing*{name=\chapter,numberless}{0pt}{-40pt}{10pt}
+
+% Format section and subsection titles (from reference)
+\titleformat{\section}[hang]
+  {\normalfont\normalsize\bfseries}
+  {\thesection.}
+  {0.5em}
+  {}
+\titlespacing*{\section}{0pt}{0.2\baselineskip}{0.15\baselineskip}
+
+\titleformat{\subsection}[hang]
+  {\normalfont\normalsize\bfseries}
+  {\thesubsection.}
+  {0.5em}
+  {}
+\titlespacing*{\subsection}{0pt}{0.2\baselineskip}{0.15\baselineskip}
+
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\chaptermark}[1]{\markboth{\thechapter.\ #1}{}}
+\fancyhead[L]{\fontsize{9pt}{11pt}\selectfont\leftmark}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\renewcommand{\footrulewidth}{0pt}
+
+% Ensure plain style (used on first page of chapters) has center page numbers
+\fancypagestyle{plain}{
+  \fancyhf{}
+  \fancyfoot[C]{\thepage}
+  \renewcommand{\headrulewidth}{0pt}
+}
+
+\usepackage[unicode, hypertexnames=false]{hyperref}
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    citecolor=black,
+    filecolor=black,
+    urlcolor=black
+}
+
+\addto\captionsvietnamese{%
+  \renewcommand{\contentsname}{Mục lục}%
+  \renewcommand{\listfigurename}{Danh mục hình vẽ}%
+  \renewcommand{\listtablename}{Danh mục đồ thị}%
+}
+
+\begin{document}
+
+% ==========================================
+% TRANG BÌA BÁO CÁO
+% ==========================================
+\begin{titlepage}
+    \begin{center}
+        \large
+        \vspace{2.5cm}
+        \includegraphics[width=0.33\textwidth]{viettel_logo.png}
+
+        \textbf{TẬP ĐOÀN CÔNG NGHIỆP - VIỄN THÔNG QUÂN ĐỘI} \\
+        \vspace{2.5cm}
+        
+        \Large
+        \textbf{BÁO CÁO MINI-PROJECT} \\
+        \vspace{0.5cm}
+        \textbf{FlowTable: Hệ thống phân tải luồng và quản lý Flow Table hiệu năng cao sử dụng DPDK}\\
+        \vspace{2.0cm}
+        
+        \large
+        \textbf{Trần Tuấn Anh} \\
+        \textbf{trantuananh16012006@gmail.com} \\
+        \textbf{Chương trình Viettel Digital Talent 2026} \\
+        \textbf{Lĩnh vực: Software Engineer} \\
+        
+        \vspace{2.5cm}
+        
+        \begin{tabular}{cc}
+            \large
+            \textbf{Mentor:} & Nguyễn Ngọc Dũng \\
+            \textbf{Đơn vị:} & Viettel High Tech
+        \end{tabular}
+        
+        \vfill
+    \end{center}
+\end{titlepage}
+
+% ==========================================
+% PHẦN ĐẦU TRANG SỐ LA MÃ
+% ==========================================
+\newpage
+\pagenumbering{roman}
+
+\chapter*{Lời mở đầu}
+\addcontentsline{toc}{chapter}{Lời mở đầu}
+Trong kỷ nguyên mạng 5G và Internet of Things, lưu lượng dữ liệu trên các hạ tầng viễn thông tăng trưởng theo cấp số nhân và đặt ra những yêu cầu khắt khe chưa từng có về khả năng xử lý của Data Plane. Các hệ thống mạng lõi hiện đại, từ Firewall thế hệ mới, Load Balancer, CGNAT cho đến User Plane Function (UPF) trong kiến trúc 5G Core, đều phải đối mặt với bài toán xử lý hàng chục triệu gói tin mỗi giây, đồng thời duy trì trạng thái theo dõi hàng triệu phiên kết nối đồng thời mà không làm tăng độ trễ của hệ thống.
+
+Trọng tâm của bài toán đặt ra là làm thế nào để phân phối lưu lượng đều trên nhiều CPU Core, đảm bảo mọi gói tin thuộc cùng một kết nối mạng luôn được xử lý bởi một Worker Core duy nhất (Flow Affinity), đồng thời loại bỏ các điểm tranh chấp bộ nhớ và tối đa hóa hiệu quả sử dụng CPU Cache. Khi lưu lượng đạt ngưỡng hàng triệu PPS, các giải pháp xử lý gói tin truyền thống trên Linux Kernel trở nên bất lực: cơ chế Hardware Interrupt liên tục làm gián đoạn CPU, chi phí chuyển đổi ngữ cảnh Kernel/User Space và sao chép bộ nhớ nhiều lớp tiêu tốn phần lớn tài nguyên tính toán trước khi logic nghiệp vụ thực sự được thực thi.
+
+Xuất phát từ thực tiễn đó, đề tài \textbf{``FlowTable: Hệ thống phân tải luồng và quản lý Flow Table hiệu năng cao sử dụng DPDK''} được thực hiện với mục tiêu xây dựng một hệ thống Data Plane hoàn chỉnh chạy thuần túy trên User Space thông qua Kernel Bypass của thư viện DPDK. Hệ thống tiếp nhận gói tin trực tiếp từ card mạng vật lý hoặc từ file PCAP thông qua DPDK PCAP PMD, phân tích cấu trúc header từ lớp Ethernet xuống đến TCP/UDP để trích xuất bộ định danh luồng Five-Tuple, rồi dựa trên đó tra cứu và cập nhật Flow Table tốc độ cao để định tuyến gói tin đến Worker Core phù hợp.
+
+Hệ thống được thiết kế xung quanh các kỹ thuật tối ưu hóa Data Plane quan trọng: bảng băm lock-free, hàng đợi Single-Producer Single-Consumer Ring Buffer giữa Dispatcher và Worker, cơ chế dọn dẹp kết nối hết hạn an toàn thông qua RCU QSBR, cấu hình bộ nhớ NUMA-aware, và bộ lọc luật nông SPI. Toàn bộ quá trình hoạt động được hiển thị trực quan qua giao diện Dashboard TUI xây dựng bằng ncurses.
+
+Báo cáo này trình bày chi tiết toàn bộ quá trình từ thiết kế kiến trúc, lựa chọn giải thuật, triển khai từng module, xây dựng bộ kiểm thử đơn vị và tích hợp, đến đo đạc và phân tích hiệu năng thực tế trên môi trường ảo hóa QEMU/KVM. Thông qua dự án này, người viết kỳ vọng thể hiện được nền tảng kỹ năng lập trình hệ thống mức thấp, tư duy thiết kế Data Plane và khả năng áp dụng các giải pháp kỹ thuật tiên tiến vào bài toán viễn thông thực tiễn trong môi trường làm việc tại Viettel.
+
+\chapter*{Tóm tắt nội dung và đóng góp}
+\addcontentsline{toc}{chapter}{Tóm tắt nội dung và đóng góp}
+Báo cáo này trình bày kết quả nghiên cứu, thiết kế và phát triển hệ thống phân tải luồng và quản lý Flow Table hiệu năng cao sử dụng DPDK.
+
+Các đóng góp chính và nội dung nghiên cứu thực tiễn của dự án bao gồm:
+\begin{enumerate}
+    \item \textbf{Thiết kế luồng Pipeline phân chia nhiệm vụ tối ưu:} Xây dựng mô hình xử lý Dispatcher-Worker gán cứng vào các lõi CPU vật lý. Luồng Dispatcher phân tải gói tin dựa trên mã băm địa chỉ IP nguồn để bảo toàn tính nhất quán luồng, ngăn chặn hiện tượng đảo lộn thứ tự gói tin. Việc trao đổi gói tin giữa các lõi được trung chuyển qua các hàng đợi Ring Buffer được cấu hình theo dạng SPSC.
+    \item \textbf{Xây dựng bảng băm Flow Table không khóa độ trễ thấp}: Cài đặt cấu trúc quản lý kết nối động sử dụng bảng băm với giải thuật Cuckoo Hashing. Bằng cách kích hoạt cờ đọc ghi đồng thời không khóa \texttt{RTE\_HASH\_}\allowbreak\texttt{EXTRA\_}\allowbreak\texttt{FLAGS\_}\allowbreak\texttt{RW\_}\allowbreak\texttt{CONCURRENCY\_}\allowbreak\texttt{LF}, Dispatcher Core có thể thực hiện tra cứu bulk liên tục song song với thao tác xóa bỏ kết nối của luồng dọn dẹp, tối ưu hóa độ trễ xử lý gói tin.
+    \item \textbf{Cơ chế dọn dẹp kết nối hết hạn Flow Aging an toàn với RCU QSBR:} Xây dựng thuật toán duyệt và xóa hai bước chạy trên luồng Aging Thread riêng biệt để giải phóng tài nguyên của các kết nối đã dừng hoạt động trong một thời gian nhất định. Tích hợp thư viện \texttt{rte\_rcu\_qsbr} quản lý vòng đời bộ nhớ 3 trạng thái Active, Pending Reclaim và Reclaimed dựa trên quiescent state được báo cáo định kỳ từ Dispatcher, loại bỏ triệt để các lỗi rò rỉ bộ nhớ hoặc lỗi truy cập bộ nhớ sau giải phóng.
+    \item \textbf{Bộ lọc quy tắc SPI hỗ trợ hot reload với Double-Buffering:} Cài đặt Rule Engine lọc gói tin hỗ trợ các hành động xử lý \texttt{FORWARD}, \texttt{DROP}, \texttt{COUNT}, và \texttt{LOG} theo nguyên tắc khớp luật đầu tiên. Ứng dụng kỹ thuật Double-Buffering để tải lại luật lọc từ file \texttt{rules.cfg} tại thời điểm chạy ứng dụng mà không gián đoạn dịch vụ.
+    \item \textbf{Giao diện giám sát thời gian thực TUI:} Phát triển bảng điều khiển trực quan bằng thư viện \texttt{ncurses} hiển thị các số liệu thống kê luồng xử lý (thông lượng Gbps/Mpps, CPU load, số gói drop trên ring, số lần hit của từng luật SPI).
+    \item \textbf{Thực nghiệm benchmark:} Tiến hành đo đạc thông lượng thực tế trên CPU Intel Core i9-13900HX ảo hóa qua QEMU/KVM dưới hai kịch bản tải stress-test: 10K luồng kết nối đạt thông lượng \textbf{18.80 Mpps} (\textbf{6.50 Gbps}) và kịch bản 100K luồng kết nối đạt thông lượng \textbf{11.80 Mpps} (\textbf{4.10 Gbps}) và phân tích chi tiết nguyên nhân sụt giảm thông lượng.
+\end{enumerate}
+
+\newpage
+\tableofcontents
+
+\newpage
+\listoffigures
+\newpage
+\listoftables
+
+\newpage
+\pagenumbering{arabic}
+
+\chapter{Giới thiệu}
+
+\section{Bối cảnh đề tài}
+Trong các hệ thống mạng lõi viễn thông hiện đại, việc theo dõi và kiểm soát trạng thái các kết nối mạng là yêu cầu bắt buộc đối với các phần cứng Firewall, Load Balancer, CGNAT và các bộ định tuyến biên viễn thông. Với hàng triệu gói tin đi qua mỗi giây, hệ thống cần duy trì một cấu trúc dữ liệu Flow Table để lưu thông tin định danh phiên truyền thông (5-Tuple). 
+
+Tuy nhiên, các kiến trúc phần mềm mạng Linux truyền thống chạy trong không gian nhân gặp phải các giới hạn nghiêm trọng về hiệu năng hệ thống phần cứng:
+\begin{itemize}
+    \item \textbf{Interrupt Storm:} Mỗi gói tin đến NIC vật lý đều tạo ra một hardware interrupt, buộc CPU phải tạm dừng luồng thực thi hiện hành, lưu lại trạng thái các thanh ghi, gây ô nhiễm cache line L1/L2, và nhảy vào thực thi interrupt handler. Dưới lưu lượng gói tin hàng triệu PPS, CPU sẽ dành toàn bộ chu kỳ tính toán chỉ để xử lý context switch ngắt mà không còn tài nguyên xử lý logic gói tin.
+    \item \textbf{Kernel/User space context switch:} Các ứng dụng mạng truyền thống phải gọi các system call như \texttt{recv()} hay \texttt{send()} để giao tiếp qua socket. Mỗi system call bắt buộc CPU phải thực thi privilege transition từ Ring~3 sang Ring~0, thay đổi page table và invalidate TLB buffer, tiêu tốn trung bình từ $1\mu s$ đến $2\mu s$ cho mỗi gói tin.
+    \item \textbf{Buffer copy overhead:} Kernel Linux phải cấp phát cấu trúc gói tin và thực hiện sao chép dữ liệu payload từ bộ nhớ của NIC vật lý vào kernel space, sau đó tiếp tục sao chép sang vùng nhớ của ứng dụng user space.
+\end{itemize}
+
+Để vượt qua các giới hạn này, việc tối ưu hóa Data Plane bằng kỹ thuật Kernel Bypass của DPDK là giải pháp tất yếu. Cơ chế Poll Mode Driver của DPDK ánh xạ trực tiếp các thanh ghi cấu hình ring buffer của NIC vật lý vào không gian bộ nhớ người dùng thông qua Hugepages và truy cập trực tiếp DMA. Các nhân xử lý sẽ chạy một vòng lặp Polling liên tục quét và đọc trực tiếp gói tin từ phần cứng NIC mà không phát sinh bất kỳ ngắt vật lý hay lệnh hệ thống nào, loại bỏ hoàn toàn overhead sao chép bộ nhớ trên RAM. Việc xử lý gói tin đồng thời yêu cầu phải phân tải đồng đều lên các CPU lõi, đồng thời bảo toàn tính nhất quán luồng để tránh hiện tượng đảo lộn thứ tự gói tin.
+
+
+\section{Yêu cầu hệ thống}
+Để thiết lập các mục tiêu kỹ thuật rõ ràng cho dự án FlowTable, các yêu cầu thiết kế được chuẩn hóa và phân nhóm thành yêu cầu chức năng (Bảng \ref{tab:func_req}) và yêu cầu phi chức năng (Bảng \ref{tab:nonfunc_req}).
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các yêu cầu chức năng lõi của hệ thống}
+    \label{tab:func_req}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{l>{\raggedright\arraybackslash}p{10cm}}
+        \toprule
+        \textbf{Nhóm tính năng} & \textbf{Yêu cầu chi tiết} \\
+        \midrule
+        Parser \& Extraction & Trích xuất chính xác 5-Tuple (Src IP, Dst IP, Src Port, Dst Port, Protocol) từ gói tin. \\
+        Flow Table Management & Hỗ trợ chèn kết nối mới, cập nhật timestamp hoạt động của luồng, tra cứu trạng thái luồng. \\
+        Load Balancing & Phân chia lưu lượng mạng đều dựa trên Source IP tới $N$ Worker, độ lệch tải $\le 10\%$. \\
+        Flow Aging & Dọn dẹp các luồng không hoạt động quá 5 giây. \\
+        SPI Rule Engine & Lọc gói tin dựa theo tập luật Wildcard IP/Port; hỗ trợ hành vi \texttt{FORWARD}, \texttt{DROP}, \texttt{COUNT}, và \texttt{LOG}. \\
+        Real-time TUI & Hiển thị thông số trực quan bao gồm Mpps, Gbps, CPU Core load và số liệu Worker. \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\begin{table}[htbp]
+    \centering
+    \caption{Các yêu cầu phi chức năng (Kiến trúc \& Hiệu năng)}
+    \label{tab:nonfunc_req}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{ll>{\raggedright\arraybackslash}p{8cm}}
+        \toprule
+        \textbf{Yêu cầu chất lượng} & \textbf{Chỉ số kỹ thuật} & \textbf{Phương pháp hiện thực} \\
+        \midrule
+        Hot-path Isolation & Latency $\le 150$ ns / packet & Fast-path hoàn toàn không khóa (Lock-free), chỉ dùng hàng đợi SPSC. \\
+        Memory Safety & Không rò rỉ bộ nhớ mbuf & Quản lý vòng đời mbuf chặt chẽ qua mempool; dọn dẹp luồng qua RCU QSBR. \\
+        NUMA-locality & Tối ưu hóa Bus UPI/QPI & Cấp phát tài nguyên mempool và ring buffer cục bộ trên CPU socket thực thi. \\
+        Zero-Copy Fast Path & Không copy gói tin trên RAM & Chuyển tiếp con trỏ gói tin \texttt{rte\_mbuf} trực tiếp qua các core. \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+Hình \ref{fig:use_case} mô tả trực quan các Use Case của hệ thống.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.85\textwidth}{!}{
+    \begin{tikzpicture}[
+        % Yêu cầu: \usetikzlibrary{positioning, fit, shapes.geometric} ở phần preamble
+        node distance=0.5cm and 2.5cm, % Khoảng cách dọc 0.5cm, khoảng cách ngang 2.5cm
+        usecase/.style={draw, ellipse, minimum height=0.3cm, text width=3.4cm, fill=green!15, align=center, font=\scriptsize},
+        actor/.style={draw, rectangle, minimum height=1.3cm, text width=2.2cm, fill=blue!15, align=center, rounded corners, font=\scriptsize},
+        system/.style={draw, rectangle, dashed, inner sep=0.4cm},
+        arrow/.style={draw, -, >=stealth, thick}
+    ]
+        % Use cases (xếp dọc ở giữa)
+        \node[usecase] (uc3) {Giám sát hiệu năng qua Dashboard TUI};
+        \node[usecase, above=of uc3] (uc2) {Cấu hình tập luật lọc gói SPI};
+        \node[usecase, above=of uc2] (uc1) {Khởi động hệ thống};
+        
+        \node[usecase, below=of uc3] (uc4) {Gửi gói tin mạng vào hệ thống};
+        \node[usecase, below=of uc4] (uc5) {Nhận các gói tin đã xử lý};
+        
+        % Actors (đặt sang hai bên của uc3)
+        \node[actor, left=of uc3] (admin) {Quản trị viên\\(Control Plane)};
+        \node[actor, right=of uc3] (nic) {Card mạng (NIC)\\(Data Plane)};
+        
+        % System boundary box
+        \node[system, fit=(uc1) (uc2) (uc3) (uc4) (uc5), label=above:\textbf{Hệ thống FlowTable}] (sys) {};
+        
+        % Connections
+        \draw[arrow] (admin) -- (uc1.west);
+        \draw[arrow] (admin) -- (uc2.west);
+        \draw[arrow] (admin) -- (uc3.west);
+        
+        \draw[arrow] (nic) -- (uc4.east);
+        \draw[arrow] (nic) -- (uc5.east);
+    \end{tikzpicture}
+    }
+    \caption{Use Case Diagram của hệ thống FlowTable.}
+    \label{fig:use_case}
+\end{figure}
+\section{Phạm vi và Giới hạn hệ thống}
+Hệ thống hiện tại được thiết kế như một phiên bản MVP (Minimum Viable Product) tập trung chứng minh tính đúng đắn của giải thuật xử lý Data Plane hiệu năng cao trên môi trường máy chủ Linux local. Các giới hạn nằm ngoài phạm vi bao gồm việc phân tích sâu ứng dụng (Deep Packet Inspection), triển khai cụm phân tải động ngoài Kubernetes, và tự động hóa CI/CD hoàn chỉnh lên môi trường staging.
+
+\section{Thông tin mã nguồn và Tổ chức thư mục}
+Toàn bộ mã nguồn dự án được xây dựng bằng ngôn ngữ C chuẩn, tuân thủ cấu trúc phân lớp modular hóa rõ ràng nhằm đảm bảo khả năng bảo trì và mở rộng dễ dàng. Sơ đồ cây thư mục của dự án bao gồm các thành phần sau:
+
+\begin{flushleft}
+\begin{itemize}
+    \item \textbf{Thư mục cấu hình và biên dịch ở gốc (Root):}
+    \begin{itemize}
+        \item \texttt{Makefile}: Tập tin cấu hình biên dịch tự động sử dụng công cụ GNU Make, hỗ trợ tạo build ứng dụng chính và chạy bộ test.
+        \item \texttt{rules.cfg}: Tập tin cấu hình chứa các luật lọc gói tin Shallow Packet Inspection (SPI) tĩnh nạp vào Rule Engine.
+    \end{itemize}
+    \item \textbf{Thư mục khai báo giao diện (include/):}
+    \begin{itemize}
+        \item \texttt{common.h}: Khai báo các hằng số cấu hình toàn cục như giới hạn Core, kích thước Ring, Hugepage mempool size, timeout kết nối mặc định.
+        \item \texttt{flow\_table.h}: Định nghĩa cấu trúc bản ghi kết nối (\texttt{flow\_entry\_t}), key băm 5-Tuple (\texttt{flow\_key\_t}) và các API quản lý Flow Table, RCU QSBR.
+        \item \texttt{dispatcher.h}: Khai báo cấu trúc bộ phân phối gói tin và API phân tải.
+        \item \texttt{worker.h}: Định nghĩa cấu trúc luồng Worker và logic fast-path dequeue.
+        \item \texttt{spi\_rules.h}: Khai báo cấu trúc luật và API Rule Engine hỗ trợ Double-Buffering.
+        \item \texttt{tui.h}: Định nghĩa giao diện Terminal UI Dashboard.
+        \item \texttt{app.h} \& \texttt{app\_args.h}: Khai báo lifecycles của ứng dụng và trình parse tham số dòng lệnh getopt.
+        \item \texttt{utils.h} \& \texttt{aging.h}: Các tiện ích phụ trợ đo lường và quản lý luồng dọn dẹp.
+    \end{itemize}
+    \item \textbf{Thư mục mã nguồn triển khai thực tế (src/):}
+    \begin{itemize}
+        \item \texttt{main.c}: Điểm khởi chạy ứng dụng, đăng ký tín hiệu hệ thống (\texttt{SIGINT}/\allowbreak\texttt{SIGTERM}) và khởi tạo DPDK EAL.
+        \item \texttt{flow\_}\allowbreak\texttt{table.c}: Hiện thực cấu trúc bảng băm, chèn mới an toàn, cập nhật timestamp và dọn dẹp RCU QSBR.
+        \item \texttt{dispatcher.c}: Triển khai giải thuật băm IP Source modulo nhân vật lý và bulk lookup định tuyến gói tin.
+        \item \texttt{worker.c}: Hiện thực fast-path xử lý gói tin của Worker Core, đối chiếu SPI ruleset và cập nhật atomic counters.
+        \item \texttt{spi\_rules.c}: Hiện thực so khớp luật lọc Wildcard và cơ chế nạp cấu hình nóng Double-Buffering an toàn RCU.
+        \item \texttt{tui.c}: Giao diện Dashboard NCurses vẽ bảng biểu và telemetry.
+        \item \texttt{app.c} \& \texttt{app\_args.c}: Quản lý điều phối khởi chạy thread lcore, thu hồi tài nguyên và parse CLI.
+        \item \texttt{utils.c} \& \texttt{aging.c}: Các tiện ích và vòng lặp thread chạy ngầm của Aging thread.
+    \end{itemize}
+    \item \textbf{Thư mục kiểm thử tự động (tests/):}
+    \begin{itemize}
+        \item \texttt{test\_eal.c}: Kiểm thử khởi tạo môi trường EAL.
+        \item \texttt{test\_flow\_table.c}: Kiểm thử parser protocol, lifecycle chèn/xóa và thu hồi RCU QSBR.
+        \item \texttt{test\_dispatcher.c}: Kiểm thử tính đúng đắn của giải thuật phân tải và ring full drops.
+        \item \texttt{test\_worker.c}: Kiểm thử xử lý mbuf của worker và atomic counters.
+        \item \texttt{test\_spi\_rules.c}: Kiểm thử matching ruleset và hot-reload Double-Buffering.
+        \item \texttt{test\_}\allowbreak\texttt{app\_}\allowbreak\texttt{args.c}: Kiểm thử validation tham số dòng lệnh.
+        \item \texttt{test\_integration.c}: Tích hợp đa luồng song song, đo lường độ lệch tải và concurrent aging dưới stress.
+    \end{itemize}
+\end{itemize}
+\end{flushleft}
+
+Hình \ref{fig:component_diag} thể hiện cấu trúc phân lớp của hệ thống.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.85\textwidth}{!}{
+    \begin{tikzpicture}[
+        % Khai báo khoảng cách dọc/ngang mặc định cho relative positioning
+        node distance=1.5cm and 2cm, 
+        component/.style={draw, rectangle, minimum height=1.1cm, text width=3.2cm, fill=cyan!15, align=center, rounded corners, thick, font=\scriptsize},
+        arrow/.style={->, >=stealth, thick}
+    ]
+        % 1. Lấy Flow Table làm trung tâm của hàng trên cùng
+        \node[component] (flowtable) {Flow Table Hash\\(flow\_table.c, aging.c)};
+        
+        % 2. EAL và Rules nằm cách đều hai bên của Flow Table
+        \node[component, left=of flowtable] (eal) {EAL Init \& Hugepages\\(main.c, app.c)};
+        \node[component, right=of flowtable] (rules) {SPI Rule Engine\\(spi\_rules.c)};
+        
+        % 3. Dispatcher và Worker nằm hàng dưới. 
+        % Sử dụng xshift để đẩy chúng lệch ra hai bên sao cho nằm giữa EAL/Rules và Flow Table
+        \node[component, below=0.9cm of flowtable, xshift=-2.8cm] (dispatcher) {Dispatcher\\(dispatcher.c)};
+        \node[component, below=0.9cm of flowtable, xshift=2.8cm] (worker) {Worker Cores\\(worker.c)};
+        
+        % 4. TUI nằm dưới cùng, tự động căn thẳng hàng dọc với Flow Table
+        \node[component, below=3.5cm of flowtable] (tui) {Monitoring Dashboard\\(tui.c)};
+
+        % Interfaces / Dependencies
+        \draw[arrow] (dispatcher) -- (eal);
+        \draw[arrow] (worker) -- (eal);
+        
+        \draw[arrow] (dispatcher) -- (flowtable);
+        \draw[arrow] (worker) -- (flowtable);
+        \draw[arrow] (worker) -- (rules);
+        
+        \draw[arrow] (tui) -- (flowtable);
+        \draw[arrow] (tui) -- (dispatcher);
+        \draw[arrow] (tui) -- (worker);
+    \end{tikzpicture}
+    }
+    \caption{Các thành phần của hệ thống.}
+    \label{fig:component_diag}
+\end{figure}
+
+\newpage
+% ==========================================
+% CƠ SỞ LÝ THUYẾT LIÊN QUAN
+% ==========================================
+\chapter{Nội dung và phương pháp}
+
+\section{Cơ sở lý thuyết liên quan}
+
+\subsection{Công nghệ Kernel Bypass và Thư viện DPDK}
+Trong các hệ điều hành như Linux, phần xử lý mạng của Kernel Space được thiết kế để chạy đa mục tiêu và bảo mật. Khi có gói tin mạng đi vào NIC, hệ thống thường thực hiện các bước sau:
+\begin{enumerate}
+    \item NIC ghi gói tin vào RAM qua cơ chế DMA và gửi hardware interrupt đến CPU.
+    \item CPU nhận hardware interrupt, tạm dừng công việc đang làm để chuyển sang chạy NIC driver.
+    \item Driver tạo cấu trúc \texttt{sk\_buff} trung gian và chuyển gói tin lên các tầng giao thức phía trên như IP, TCP/UDP.
+    \item Ứng dụng user space gọi system call để sao chép gói tin từ \texttt{sk\_buff} sang vùng nhớ của ứng dụng.
+\end{enumerate}
+
+Quy trình này sẽ bị quá tải khi lượng gói tin mạng quá lớn (lên tới hàng chục triệu gói mỗi giây). Việc CPU phải liên tục dừng công việc để xử lý ngắt, gây ra hiện tượng Interrupt Storm, cộng thêm thời gian sao chép dữ liệu giữa nhân và ứng dụng trên RAM sẽ làm hệ thống bị nghẽn.
+
+Để giải quyết vấn đề này, công nghệ Kernel Bypass cho phép ứng dụng đọc dữ liệu trực tiếp từ card mạng. Thư viện DPDK cung cấp giải pháp này dựa trên hai cơ chế chính:
+\begin{itemize}
+    \item \textbf{Poll Mode Driver (PMD):} Trình điều khiển PMD liên tục kiểm tra card mạng để lấy gói tin về ứng dụng mà không cần dùng Hardware Interrupt. Việc này giúp CPU tập trung hoàn toàn vào việc xử lý gói tin mà không bị ngắt quãng.
+    \item \textbf{Hugepages memory allocation:} Mặc định hệ điều hành Linux quản lý bộ nhớ theo các trang nhỏ ($4$ KB). Khi lượng gói tin lớn, số trang bộ nhớ quá nhiều làm CPU mất nhiều thời gian tra cứu địa chỉ bộ nhớ, gây ra lỗi TLB miss liên tục. DPDK sử dụng các trang bộ nhớ lớn Hugepages cỡ $2$ MB hoặc $1$ GB, giúp giảm số lượng trang cần quản lý đi hàng nghìn lần và tăng tốc độ truy cập bộ nhớ.
+\end{itemize}
+
+\subsection{Cuckoo Hashing algorithm}
+Để quản lý các kết nối mạng Flow Table, hệ thống cần một bảng băm có tốc độ tìm kiếm nhanh và ổn định, không bị chậm đi khi bảng băm đầy. Các bảng băm thông thường khi bị đụng độ khóa băm sẽ dùng danh sách liên kết để nối các phần tử lại với nhau, việc này làm giảm tốc độ tìm kiếm do phải duyệt qua danh sách.
+
+DPDK sử dụng thuật toán băm Cuckoo để khắc phục nhược điểm trên. Thuật toán này dùng hai hoặc nhiều hàm băm khác nhau để tính ra hai vị trí có thể đặt phần tử trong bảng băm. Khi thêm một phần tử mới $x$:
+\begin{enumerate}
+    \item Hệ thống kiểm tra hai vị trí này. Nếu một trong hai vị trí còn trống, phần tử $x$ sẽ được đặt vào đó.
+    \item Nếu cả hai vị trí đều đã có phần tử cũ:
+    \begin{itemize}
+        \item Phần tử mới $x$ sẽ chèn đè vào một trong hai vị trí và đẩy phần tử cũ ở đó ra ngoài.
+        \item Phần tử cũ bị đẩy ra sẽ tìm đến vị trí còn lại của nó để nằm.
+        \item Nếu vị trí mới đó cũng đã có phần tử khác, quá trình đẩy này lại tiếp tục cho đến khi tìm được vị trí trống hoặc đạt giới hạn số lần đẩy tối đa.
+    \end{itemize}
+\end{enumerate}
+
+Cách làm này giúp bảng băm đạt hiệu suất sử dụng bộ nhớ trên $95\%$ mà vẫn đảm bảo tốc độ tìm kiếm cực nhanh (chỉ cần tối đa 2 lần đọc bộ nhớ để kiểm tra).
+
+\subsection{Cơ chế Read-Copy-Update (RCU) và QSBR}
+Trong FlowTable, luồng Dispatcher thực hiện tìm kiếm và thêm các kết nối mới, còn luồng Aging chạy song song để quét và xóa các kết nối hết hạn. Nếu dùng các loại khóa thông thường (như Mutex hay Spinlock) để đồng bộ giữa hai luồng đọc và ghi này, hệ thống sẽ bị chậm do các luồng phải dừng lại chờ nhau.
+
+Cơ chế RCU giải quyết vấn đề này bằng cách tách riêng việc đọc và ghi dữ liệu:
+\begin{itemize}
+    \item \textbf{Đọc (Dispatcher):} Tìm kiếm và đọc dữ liệu bảng băm mà không cần dùng khóa.
+    \item \textbf{Ghi/Xóa (Aging):} Khi cần xóa một phần tử, luồng Aging sẽ ngắt kết nối của nó khỏi bảng băm. Vùng nhớ này chưa được giải phóng ngay vì luồng Dispatcher có thể vẫn đang đọc nó. Luồng Aging sẽ đưa phần tử này vào Defer Queue và đợi cho đến khi luồng Dispatcher xử lý xong gói tin hiện tại thì mới xóa bộ nhớ một cách an toàn.
+\end{itemize}
+
+DPDK sử dụng cơ chế RCU QSBR. Lõi CPU chạy luồng Dispatcher được coi là đã đi qua quiescent state khi nó xử lý xong một đợt gói tin (không còn giữ con trỏ tới phần tử cũ nào). Khi Dispatcher báo cáo đã đi qua quiescent state, luồng Aging sẽ an toàn giải phóng bộ nhớ của các phần tử đã bị xóa trong Defer Queue về mempool.
+
+\subsection{Tối ưu hóa bộ nhớ NUMA và CPU Cache}
+Tốc độ xử lý mạng phụ thuộc nhiều vào thời gian đọc ghi RAM. Trong hệ thống có nhiều vi xử lý vật lý NUMA, mỗi CPU quản lý một vùng RAM riêng. Nếu CPU này đọc dữ liệu từ vùng RAM của CPU khác, thời gian chờ sẽ lâu gấp đôi so với đọc vùng RAM của chính nó. DPDK tối ưu hóa việc này bằng cách cấp phát toàn bộ các hàng đợi, vùng nhớ gói tin và bảng băm trên đúng vùng RAM của CPU đang chạy ứng dụng.
+
+Đồng thời, cấu trúc kết nối \texttt{flow\_entry\_t} được thiết kế nhỏ gọn chỉ $48$ bytes. Thiết kế này giúp tiết kiệm bộ nhớ đệm CPU (CPU Cache) và giảm thiểu việc đọc ghi trực tiếp lên RAM ngoài, giúp hệ thống hoạt động nhanh hơn.
+
+\newpage
+% ==========================================
+% THIẾT KẾ VÀ TRIỂN KHAI CHI TIẾT HỆ THỐNG
+% ==========================================
+\section{Thiết kế và Triển khai chi tiết hệ thống}
+
+\subsection{Kiến trúc tổng thể hệ thống (Pipeline)}
+Hệ thống FlowTable xây dựng dựa trên kiến trúc phân chia nhiệm vụ. Dispatcher thread chạy trên Master Core 0 đọc đồng thời nhiều gói tin (burst) trực tiếp từ giao diện PMD ảo, phân tích packet header và chuyển vào các SPSC Ring tương ứng. Các Worker thread được khởi chạy và pin cứng vào các lõi CPU xử lý chuyên dụng thông qua hàm \texttt{rte\_eal\_remote\_launch()}, loại bỏ hoàn toàn hiện tượng thread migration của OS scheduler. Khi nhận tín hiệu tắt hệ thống, luồng chính sử dụng hàm \texttt{rte\_eal\_mp\_wait\_lcore()} để đồng bộ và đợi toàn bộ các Worker hoàn thành chu kỳ xử lý trước khi giải phóng tài nguyên. Các Worker Core (Core 1--4) lấy gói tin từ hàng đợi để đối chiếu với SPI ruleset, cập nhật số liệu thống kê và giải phóng mbuf. Chi tiết pipeline xử lý được mô tả trong Data Flow Diagram (DFD) tại Hình~\ref{fig:pipeline_detailed}.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{\textwidth}{!}{
+    \begin{tikzpicture}[
+        % Yêu cầu: \usetikzlibrary{positioning, fit} ở preamble
+        node distance=0.4cm and 1.2cm, % Khoảng cách dọc 0.4cm, khoảng cách ngang 1.2cm
+        block/.style={draw, rectangle, minimum height=1cm, text width=2.4cm, align=center, fill=blue!10, rounded corners, font=\scriptsize},
+        ring/.style={draw, circle, minimum size=1.2cm, fill=green!15, align=center, font=\scriptsize},
+        arrow/.style={->, >=stealth, thick}
+    ]
+        % 1. Xây dựng xương sống: Cột các Rings
+        \node[ring] (ring0) {Ring 0\\(SPSC)};
+        \node[ring, below=of ring0] (ring1) {Ring 1\\(SPSC)};
+        \node[ring, below=of ring1] (ring2) {Ring 2\\(SPSC)};
+        \node[ring, below=of ring2] (ring3) {Ring 3\\(SPSC)};
+        
+        % 2. Các Worker nằm song song ngay bên phải từng Ring tương ứng
+        \node[block, right=of ring0] (w0) {Worker 0\\(lcore 1)};
+        \node[block, right=of ring1] (w1) {Worker 1\\(lcore 2)};
+        \node[block, right=of ring2] (w2) {Worker 2\\(lcore 3)};
+        \node[block, right=of ring3] (w3) {Worker 3\\(lcore 4)};
+        
+        % 3. Khối Fan-Out: Nhóm các Rings lại thành một khối vô hình để lấy tâm
+        \node[fit=(ring0)(ring3), inner sep=0pt] (ring_group) {};
+        
+        % Đặt Dispatcher sang bên trái và TỰ ĐỘNG CĂN GIỮA theo chiều dọc của toàn nhóm Rings
+        \node[block, left=of ring_group] (disp) {Dispatcher\\(lcore 0)};
+        
+        % Ingress nằm thẳng bên trái Dispatcher
+        \node[block, left=of disp] (rx) {Ingress NIC / PCAP\\Virtual Port};
+        
+        % 4. Khối Fan-In: Nhóm các Worker lại thành khối vô hình để lấy tâm
+        \node[fit=(w0)(w3), inner sep=0pt] (worker_group) {};
+        
+        % Đặt TX sang bên phải và tự động căn giữa theo toàn nhóm Worker
+        \node[block, right=of worker_group, minimum height=2.5cm] (tx) {TX / Free\\(rte\_pktmbuf\_free)};
+
+        % --- Gắn các mũi tên liên kết ---
+        \draw[arrow] (rx) -- node[above, font=\scriptsize] {Burst} (disp);
+        
+        \draw[arrow] (disp.east) -- (ring0.west);
+        \draw[arrow] (disp.east) -- (ring1.west);
+        \draw[arrow] (disp.east) -- (ring2.west);
+        \draw[arrow] (disp.east) -- (ring3.west);
+        
+        \draw[arrow] (ring0) -- (w0);
+        \draw[arrow] (ring1) -- (w1);
+        \draw[arrow] (ring2) -- (w2);
+        \draw[arrow] (ring3) -- (w3);
+        
+        \draw[arrow] (w0.east) -- (tx.west);
+        \draw[arrow] (w1.east) -- (tx.west);
+        \draw[arrow] (w2.east) -- (tx.west);
+        \draw[arrow] (w3.east) -- (tx.west);
+    \end{tikzpicture}
+    }
+    \caption{Data Flow Diagram (DFD) của pipeline xử lý gói tin đa lõi.}
+    \label{fig:pipeline_detailed}
+\end{figure}
+
+Để làm rõ hơn trình tự tương tác thời gian thực giữa các thành phần phần cứng và phần mềm trong quá trình xử lý gói tin, vòng đời chi tiết của một gói tin đi qua hệ thống được mô tả dưới dạng Sequence Diagram tại Hình~\ref{fig:sequence_diag}.
+
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.85\textwidth}{!}{
+    \begin{tikzpicture}[
+        % Cần khai báo: \usetikzlibrary{positioning, fit, calc} ở preamble
+        node distance=0.8cm and 1.2cm, % 0.8cm dọc, 1.2cm ngang (giữa các actor)
+        lifeline/.style={draw, dashed, gray, thick},
+        actor/.style={draw, rectangle, fill=blue!10, minimum width=2.2cm, minimum height=0.8cm, align=center},
+        active/.style={draw, fill=yellow!20, minimum width=0.3cm, inner sep=0pt},
+        arrow/.style={->, >=stealth, thick}
+    ]
+        % 1. Các Actor (Định vị ngang tương đối)
+        \node[actor] (nic) {NIC PMD};
+        \node[actor, right=of nic] (disp) {Dispatcher\\(Core 0)};
+        \node[actor, right=of disp] (ft) {Flow Table};
+        \node[actor, right=of ft] (ring) {SPSC Ring};
+        \node[actor, right=of ring] (wrk) {Worker\\(Core 1-4)};
+        \node[actor, right=of wrk] (spi) {Rule Engine};
+        
+        % 2. Trục thời gian (Định vị dọc tương đối)
+        % Khai báo các mốc thời gian tuần tự từ trên xuống dưới
+        \coordinate[below=1.0cm of nic] (t1);
+        \coordinate[below=0.6cm of t1] (t2);
+        \coordinate[below=0.6cm of t2] (t3);
+        \coordinate[below=1.0cm of t3] (t4);
+        \coordinate[below=0.8cm of t4] (t5);
+        \coordinate[below=0.8cm of t5] (t6);
+        \coordinate[below=0.6cm of t6] (t7);
+        \coordinate[below=0.8cm of t7] (t8);
+        \coordinate[below=0.5cm of t8] (tend); % Mốc kết thúc Lifeline
+        
+        % 3. Vẽ Lifelines (Tự động kéo dài từ Actor xuống mốc thời gian cuối)
+        \draw[lifeline] (nic) -- (nic |- tend);
+        \draw[lifeline] (disp) -- (disp |- tend);
+        \draw[lifeline] (ft) -- (ft |- tend);
+        \draw[lifeline] (ring) -- (ring |- tend);
+        \draw[lifeline] (wrk) -- (wrk |- tend);
+        \draw[lifeline] (spi) -- (spi |- tend);
+        
+        % 4. Các khối Active màu vàng (Dùng fit để bao trọn từ thời gian bắt đầu đến kết thúc)
+        \node[active, fit={(nic |- t1) (nic |- t8)}] (a_nic) {};
+        \node[active, fit={(disp |- t1) (disp |- t4)}] (a_disp) {};
+        \node[active, fit={(ft |- t2) (ft |- t3)}] (a_ft) {};
+        \node[active, fit={(ring |- t4) (ring |- t5)}] (a_ring) {};
+        \node[active, fit={(wrk |- t5) (wrk |- t8)}] (a_wrk) {};
+        \node[active, fit={(spi |- t6) (spi |- t7)}] (a_spi) {};
+        
+        % 5. Mũi tên tương tác (Bắt dính vào viền đông/tây của khối active tại mốc thời gian tương ứng)
+        \draw[arrow] (a_nic.east |- t1) -- node[above, font=\scriptsize] {Packet Burst (nb\_pkts)} (a_disp.west |- t1);
+        
+        \draw[arrow] (a_disp.east |- t2) -- node[above, font=\scriptsize] {flow\_table\_lookup\_bulk} (a_ft.west |- t2);
+        \draw[arrow] (a_ft.west |- t3) -- node[above, font=\scriptsize] {Return Hit Mask} (a_disp.east |- t3);
+        
+        \draw[arrow] (a_disp.east |- t4) -- node[above, font=\scriptsize] {rte\_ring\_enqueue} (a_ring.west |- t4);
+        \draw[arrow] (a_wrk.west |- t5) -- node[above, font=\scriptsize] {rte\_ring\_dequeue} (a_ring.east |- t5);
+        
+        \draw[arrow] (a_wrk.east |- t6) -- node[above, font=\scriptsize] {spi\_rule\_engine\_match} (a_spi.west |- t6);
+        \draw[arrow] (a_spi.west |- t7) -- node[above, font=\scriptsize] {Return Action} (a_wrk.east |- t7);
+        
+        \draw[arrow] (a_wrk.west |- t8) -- node[above, font=\scriptsize] {rte\_pktmbuf\_free} (a_nic.east |- t8);
+    \end{tikzpicture}
+    }
+    \caption{Sequence Diagram mô tả vòng đời của gói tin qua hệ thống.}
+    \label{fig:sequence_diag}
+\end{figure}
+
+
+\subsection{Chiến lược lưu trữ trạng thái và Phân vùng bộ nhớ}
+Để đạt được tốc độ xử lý nhanh nhất, hệ thống phân chia vùng nhớ một cách rõ ràng (Bảng~\ref{tab:mem_partitioning}). Toàn bộ dữ liệu hot-path được đặt trên Hugepages, giúp các lõi CPU truy xuất trực tiếp dữ liệu mà không cần thông qua các bước địa chỉ hóa của OS, tránh lỗi page fault.
+
+Để tối ưu hóa hiệu năng trên các máy chủ đa socket CPU, toàn bộ các cấu trúc dữ liệu của luồng (như \texttt{worker\_t} và \texttt{flow\_table\_t}) được cấp phát động trên vùng nhớ RAM thuộc socket nội bộ của nhân đang thực thi bằng hàm \texttt{rte\_zmalloc\_socket()} kết hợp với hàm lấy socket ID cục bộ \texttt{rte\_lcore\_to\_socket\_id()}. Đồng thời, vùng nhớ lưu trữ gói tin được khởi tạo qua \texttt{rte\_pktmbuf\_pool\_create()} cũng được pin tại socket nội bộ để tránh cross-socket UPI/QPI bandwidth.
+
+Bên cạnh đó, các SPSC Ring trao đổi gói tin giữa Dispatcher và Worker được khởi tạo bằng hàm \texttt{rte\_ring\_create()} với hai cờ tối ưu hóa \texttt{RING\_F\_SP\_ENQ} (Single-Producer Enqueue) và \texttt{RING\_F\_SC\_DEQ} (Single-Consumer Dequeue). Cơ chế SPSC này cho phép Dispatcher thread đẩy gói tin vào queue và các Worker thread lấy gói tin ra chạy song song hoàn toàn lock-free, loại bỏ hoàn toàn chi phí memory barriers và hiện tượng cache line bouncing.
+
+\begin{table}[H]
+    \centering
+    \caption{Phân vùng lưu trữ dữ liệu hệ thống}
+    \label{tab:mem_partitioning}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{lll>{\raggedright\arraybackslash}p{6cm}}
+        \toprule
+        \textbf{Thành phần dữ liệu} & \textbf{Kiểu vùng nhớ} & \textbf{Cấp phát vật lý} & \textbf{Vai trò thiết kế} \\
+        \midrule
+        Packet Buffers & Hugepage \texttt{rte\_mempool} & cục bộ NUMA socket & Lưu trữ toàn bộ gói tin \texttt{rte\_mbuf} nhận được từ NIC. \\
+        Worker Rings & Lock-free \texttt{rte\_ring} & cục bộ NUMA socket & SPSC queue trao đổi con trỏ gói tin giữa Dispatcher và Worker. \\
+        Flow Table entries & Hash table \texttt{rte\_hash} & Hugepage allocated & Lưu trữ khóa kết nối băm và cấu trúc \texttt{flow\_entry\_t} đồng thời. \\
+        TUI State \& Log Buffer & Standard RAM & Virtual Memory OS & Phục vụ việc hiển thị giao diện giám sát và ghi log bất đồng bộ. \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\subsection{Cơ chế Flow Table và giải thuật băm lock-free}
+Bảng quản lý kết nối Flow Table lưu trữ các bản ghi \texttt{flow\_entry\_t}. Cấu trúc dữ liệu của bản ghi được giữ ở mức tinh giản tối đa nhằm tối ưu hóa bộ nhớ và tăng tốc độ xử lý Fast-Path:
+\begin{verbatim}
+typedef struct {
+    rte_be32_t src_ip;
+    rte_be32_t dst_ip;
+    rte_be16_t src_port;
+    rte_be16_t dst_port;
+    uint8_t    protocol;
+    uint8_t    worker_id;
+    uint8_t    state;
+    uint8_t    padding;
+    uint64_t   created_at_tsc;
+    uint64_t   last_seen_at_tsc;
+    _Atomic uint64_t pkt_count;
+    _Atomic uint64_t byte_count;
+} flow_entry_t;
+\end{verbatim}
+
+Bảng băm sử dụng thư viện \texttt{rte\_hash} cấu hình thuật toán băm Cuckoo Hashing và chế độ đọc ghi song song không khóa thông qua các cờ:
+\begin{itemize}
+    \item \textbf{Cuckoo Hashing:} \texttt{rte\_hash} áp dụng thuật toán băm Cuckoo để giải quyết đụng độ khóa (collisions). Khi xảy ra đụng độ, thuật toán sẽ di chuyển phần tử cũ sang vị trí băm phụ (alternative slots) một cách thông minh, đảm bảo thời gian tra cứu đạt mức hằng số $O(1)$ ngay cả khi bảng băm đạt tải trên $90\%$ công suất.
+    \item \textbf{RTE\_HASH\_EXTRA\_FLAGS\_RW\_CONCURRENCY\_LF:} \newline Cờ này bật cơ chế Reader-Writer Lock-Free Concurrency. Luồng Dispatcher có thể thực hiện tra cứu bulk (\texttt{rte\_hash\_lookup\_bulk\_data}) hoàn toàn song song không bị chặn bởi các thao tác chèn mới hoặc xóa bỏ của luồng Aging Thread.
+    \item \textbf{Cấu trúc bản ghi tối giản:} Cấu trúc dữ liệu \texttt{flow\_entry\_t} chiếm kích thước tối ưu là $48$ bytes. Thiết kế này giúp tiết kiệm dung lượng RAM phân bổ cho bảng băm, giữ cấu trúc mã nguồn đơn giản, dễ đọc mà vẫn đảm bảo độ trễ tra cứu cực thấp ở Fast-path.
+\end{itemize}
+Sơ đồ liên kết vùng nhớ được mô tả ở Hình \ref{fig:flowtable_memory}.
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.85\textwidth}{!}{
+    \begin{tikzpicture}[
+        node distance=1.8cm and 3.2cm,
+        arraybox/.style={draw, rectangle, minimum height=1cm, text width=3.0cm, align=center, fill=orange!15, rounded corners, font=\scriptsize},
+        entrybox/.style={draw, rectangle, minimum height=1.5cm, text width=4.5cm, align=left, fill=yellow!15, rounded corners, font=\scriptsize},
+        poolbox/.style={draw, rectangle, minimum height=1cm, text width=3.0cm, align=center, fill=cyan!15, rounded corners, font=\scriptsize},
+        arrow/.style={->, >=stealth, thick}
+    ]
+        % Nodes
+        \node[arraybox] (hash) {rte\_hash index\\(Key: flow\_key\_t)};
+        \node[entrybox, right=of hash] (entry) {\textbf{flow\_entry\_t} \\ - 5-Tuple (16 bytes) \\ - worker\_id \& state \\ - pkt\_count \& byte\_count \\ - last\_seen\_at\_tsc};
+        \node[poolbox, below=of hash] (mempool) {rte\_mempool\\(Pre-allocated Entries)};
+
+        % Paths
+        \draw[arrow] (hash) -- node[above, font=\tiny] {Key Data Pointer} (entry);
+        \draw[arrow, dashed] (mempool.east) -| node[above, pos=0.35, font=\tiny] {Pre-allocated allocations} (entry.south);
+    \end{tikzpicture}
+    }
+    \caption{Cấu trúc liên kết bộ nhớ đệm Flow Table.}
+    \label{fig:flowtable_memory}
+\end{figure}
+
+\subsection{Dispatcher Algorithm}
+Dispatcher thread thực hiện phân phối gói tin và duy trì flow affinity cho từng phiên truyền dẫn. Khi nhận được một packet burst từ virtual PMD port, Dispatcher trích xuất 5-Tuple từ Ethernet/IP/TCP/UDP header. Do các trường trên packet header được lưu trữ ở dạng Big-Endian (Network Byte Order -- NBO), Dispatcher sử dụng các hàm \texttt{rte\_be\_to\_cpu\_32()} và \texttt{rte\_be\_to\_cpu\_16()} để chuyển đổi về Little-Endian (Host Byte Order -- HBO) trước khi tính toán hash index. Sau đó, hệ thống tra cứu Flow Table. Nếu xảy ra flow hit, gói tin được chuyển ngay đến SPSC Ring của Worker đang quản lý kết nối đó. Nếu xảy ra flow miss, Dispatcher tính toán gán Worker ID mới (dựa theo source IP modulo N hoặc RSS hash), chèn entry mới vào Flow Table, rồi enqueue gói tin vào Ring của Worker đó.
+
+Để trực quan hóa các bước rẽ nhánh điều hướng gói tin của Dispatcher, sơ đồ logic hoạt động được minh họa thông qua Activity Diagram tại Hình~\ref{fig:activity_diag}.
+
+
+\begin{figure}[htbp]
+    \centering
+    \resizebox{0.75\textwidth}{!}{
+    \begin{tikzpicture}[
+        startstop/.style={draw, circle, fill=black, minimum size=15pt},
+        decision/.style={draw, diamond, aspect=2, fill=orange!15, align=center, inner sep=2pt, font=\scriptsize},
+        process/.style={draw, rectangle, fill=cyan!15, minimum height=0.8cm, minimum width=3.5cm, align=center, rounded corners, font=\scriptsize},
+        arrow/.style={->, >=stealth, thick}
+    ]
+        % Nodes
+        \node[startstop] (start) at (0, 7) {};
+        \node[process, below=of start, yshift=0.3cm] (rx) {Nhận Burst Gói tin\\(rte\_eth\_rx\_burst)};
+        \node[process, below=of rx, yshift=0.3cm] (bulk) {Tra cứu Bulk Bảng Băm\\(flow\_table\_lookup\_bulk)};
+        \node[decision, below=of bulk, yshift=0.3cm] (hit) {Khớp Khóa (Hit)?};
+        
+        % Hit branch
+        \node[process, right=of hit, xshift=1cm] (get_worker) {Lấy worker\_id từ Entry\\Cập nhật timestamp};
+        
+        % Miss branch
+        \node[decision, below=of hit, yshift=-0.5cm] (ipv4) {Có phải gói IPv4?};
+        \node[process, left=of ipv4, xshift=-1cm] (rss) {worker\_id = RSS Hash \% N};
+        \node[process, below=of ipv4, yshift=-0.5cm] (hbo) {worker\_id = IP Source \% N\\Cấp phát \& Chèn Entry mới};
+        
+        % Join point
+        \node[process, below=of get_worker, yshift=-3cm] (enqueue) {Đẩy gói vào Worker Ring\\(rte\_ring\_enqueue)};
+        \node[decision, below=of enqueue, yshift=0.3cm] (full) {Ring bị đầy?};
+        
+        \node[process, left=of full, xshift=-1.5cm] (drop) {Giải phóng gói tin\\Tăng đếm Packet Drop};
+        \node[process, below=of full, yshift=-0.5cm] (ok) {Tăng đếm Routed Packet};
+        \node[startstop, double, below=of ok, yshift=0.3cm] (end) {};
+        
+        % Connect paths
+        \draw[arrow] (start) -- (rx);
+        \draw[arrow] (rx) -- (bulk);
+        \draw[arrow] (bulk) -- (hit);
+        
+        \draw[arrow] (hit) -- node[above, font=\scriptsize] {Có} (get_worker);
+        \draw[arrow] (hit) -- node[left, font=\scriptsize] {Không} (ipv4);
+        
+        \draw[arrow] (ipv4) -- node[above, font=\scriptsize] {Không} (rss);
+        \draw[arrow] (ipv4) -- node[left, font=\scriptsize] {Có} (hbo);
+        
+        \draw[arrow] (get_worker) -- (enqueue);
+        \draw[arrow] (rss) |- (enqueue);
+        \draw[arrow] (hbo) |- (enqueue);
+        
+        \draw[arrow] (enqueue) -- (full);
+        \draw[arrow] (full) -- node[above, font=\scriptsize] {Có} (drop);
+        \draw[arrow] (full) -- node[left, font=\scriptsize] {Không} (ok);
+        \draw[arrow] (drop) |- (end);
+        \draw[arrow] (ok) -- (end);
+    \end{tikzpicture}
+    }
+    \caption{Activity Diagram thể hiện logic điều phối gói của Dispatcher.}
+    \label{fig:activity_diag}
+\end{figure}
+
+
+\subsection{Flow Aging với RCU QSBR}
+Trong fast path, việc dọn dẹp các kết nối hết hạn (timeout) là một tác vụ tiêu tốn tài nguyên và có nguy cơ cao gây ra race condition hoặc lỗi Use-After-Free. Để giải quyết triệt để vấn đề này, hệ thống hiện thực cơ chế flow aging bất đồng bộ dựa trên thư viện \texttt{rte\_rcu\_qsbr} với quy trình chi tiết như sau:
+
+\begin{enumerate}
+    \item \textbf{Cơ chế Chunk-based Scan:} Luồng Aging Thread chạy ở nền và thực hiện quét bảng băm theo từng phân đoạn có kích thước giới hạn (\texttt{--age-chunks}, mặc định 64) trong mỗi chu kỳ. Điều này giúp chia nhỏ chi phí xử lý, tránh việc giữ khóa ghi (\texttt{write\_lock}) quá lâu gây gián đoạn luồng thêm mới flow của Dispatcher.
+    \item \textbf{Giải thuật Two-Pass Iteration:}
+    \begin{itemize}
+        \item \textit{Bước 1 (Quét và thu thập):} Aging Thread gọi \texttt{rte\_hash\_iterate} để duyệt qua phân đoạn hiện tại. Nếu phát hiện một flow entry có thời gian rảnh vượt quá 5 giây ($\Delta t > 5$ giây), khóa của flow đó được sao chép vào mảng tạm thời \texttt{expired\_keys}. Không có thao tác xóa nào được thực hiện trong quá trình duyệt để đảm bảo an toàn cho cấu trúc index bảng băm.
+        \item \textit{Bước 2 (Xóa và đẩy vào RCU):} Sau khi hoàn tất duyệt phân đoạn, luồng tiến hành duyệt mảng \texttt{expired\_keys} và gọi \texttt{rte\_hash\_del\_key} để xóa khóa ra khỏi bảng băm. Thao tác xóa này sẽ tự động đẩy bản ghi dữ liệu tương ứng vào hàng đợi RCU Defer Queue ở chế độ tự động giải phóng (\texttt{RTE\_HASH\_QSBR\_MODE\_DQ}).
+    \end{itemize}
+    \item \textbf{Vòng đời ba trạng thái của Flow Entry:}
+    Một flow entry trong hệ thống trải qua ba trạng thái an toàn:
+    \begin{itemize}
+        \item \textit{Active:} Khóa nằm trong bảng băm, được truy xuất bởi Dispatcher Core để đối chiếu gói tin.
+        \item \textit{Pending Reclaim:} Khóa đã bị xóa khỏi bảng băm bởi luồng Aging, các lookup mới sẽ không tìm thấy. Tuy nhiên, vùng nhớ của entry chưa được giải phóng vì Dispatcher Core chạy song song có thể vẫn đang tham chiếu tới entry này trong chu kỳ xử lý gói hiện hành.
+        \item \textit{Reclaimed:} Sau khi Dispatcher Core đã báo cáo trạng thái quiescent (bằng cách gọi \texttt{rte\_rcu\_qsbr\_quiescent} báo cáo đã hoàn thành vòng lặp xử lý burst hiện tại), RCU nhận diện các entry hết hạn đã hoàn toàn an toàn, sau đó tự động gọi callback giải phóng để đưa entry về \texttt{rte\_mempool}.
+    \end{itemize}
+\end{enumerate}
+
+
+\subsection{SPI Rule Engine và Double-Buffering}
+Quy tắc lọc gói tin SPI hỗ trợ cơ chế cập nhật nóng tập luật (\texttt{rules.cfg}) mà không gây mất gói tin nhờ thiết kế Double-Buffering (Active và Shadow) được mô tả ở Hình \ref{fig:double_buffering_detailed}.
+
+Cơ chế Double-Buffering cho phép hot-reload ruleset tại runtime mà không cần lock đồng bộ. Ruleset được lưu trữ trong cấu trúc \texttt{spi\_ruleset\_t} được trỏ bởi atomic pointer \texttt{active\_\allowbreak ruleset}. Khi Worker thực hiện rule matching trên gói tin, nó đọc active ruleset bằng \texttt{atomic\_\allowbreak load\_\allowbreak explicit()} với \texttt{memory\_\allowbreak order\_\allowbreak acquire}. Khi administrator tải lại luật mới, Control Plane thread nạp ruleset mới vào Shadow buffer rồi swap pointer bằng \texttt{atomic\_\allowbreak store\_\allowbreak explicit()} với \texttt{memory\_\allowbreak order\_\allowbreak release}. Nhờ acquire-release memory ordering này, Worker thread luôn thấy dữ liệu nhất quán mà không bị ảnh hưởng bởi Control Plane write thread, đảm bảo zero packet drop khi reload.
+
+
+\begin{figure}[htbp]
+    \centering
+    % Đã loại bỏ hoàn toàn \resizebox
+    \begin{tikzpicture}[
+        % Thu hẹp khoảng cách ngang từ 1.8cm xuống 1.2cm
+        node distance=0.8cm and 1.2cm, 
+        % Thu gọn text width để tổng chiều ngang không vượt quá \textwidth
+        ptr/.style={draw, rectangle, minimum height=1cm, text width=2.4cm, fill=red!15, align=center, rounded corners, font=\scriptsize},
+        buf/.style={draw, rectangle, minimum height=1cm, text width=3.4cm, fill=green!15, align=center, rounded corners, font=\scriptsize},
+        arrow/.style={->, >=stealth, thick}
+    ]
+        % 1. Xây dựng nhóm rẽ nhánh
+        \node[buf] (rulesA) {Ruleset A\\(Active)};
+        \node[buf, below=of rulesA] (rulesB) {Ruleset B\\(Shadow / Inactive)};
+        
+        % 2. Gộp nhóm
+        \node[fit=(rulesA)(rulesB), inner sep=0pt] (rules_group) {};
+
+        % 3. Căn giữa các thành phần Control
+        \node[ptr, left=of rules_group, xshift=-1cm] (active) {active\_ruleset\\Pointer\\(Atomic Read)};
+        \node[ptr, left=of active, xshift=-1cm] (control) {Control Plane\\(Reload Thread)};
+
+        % --- Kẻ các đường dẫn ---
+        \draw[arrow] (active.east) -- node[above, sloped, font=\scriptsize] {Point to} (rulesA.west);
+        \draw[arrow, dashed] (active.east) -- node[above, yshift=-1mm, sloped, font=\scriptsize] {Swap target} (rulesB.west);
+        
+        \draw[arrow] (control) -- node[above, font=\scriptsize] {atomic\_store} (active);
+        
+        \draw[arrow] (control.south) |- node[below, pos=0.75, font=\scriptsize] {1. Write rules.cfg} (rulesB.west);
+    \end{tikzpicture}
+    \caption{Cơ chế nạp nóng tập luật Double-Buffering.}
+    \label{fig:double_buffering_detailed}
+\end{figure}
+
+Hệ thống so khớp gói tin theo nguyên tắc First-Match Wins. Các luật trong Active Ruleset được duyệt tuần tự từ trên xuống dưới để đối chiếu protocol, source/destination IP, và source/destination port của gói tin. Nếu một trường trong luật bằng 0 (hoặc protocol 0xFF), trường đó được coi là wildcard và luôn match. Khi gói tin match một luật, hệ thống tăng hit counter, ghi log tên luật và trả về action tương ứng (\texttt{FORWARD} hoặc \texttt{DROP}) ngay lập tức mà không cần duyệt tiếp. Nếu không match bất kỳ luật nào, gói tin mặc định được \texttt{FORWARD}.
+
+\subsection{Giao diện giám sát thời gian thực (Terminal User Interface - TUI)}
+Hệ thống tích hợp giao diện màn hình giám sát thời gian thực sử dụng thư viện \texttt{ncurses}, hiển thị trực quan qua hai bảng số liệu độc lập:
+\begin{itemize}
+    \item \textbf{Bảng thống kê Worker:} Hiển thị số gói tin phân loại theo giao thức ứng dụng (HTTP, HTTPS, DNS, TCP, UDP, OTHER) và số gói bị rơi (drop) trên hàng đợi của từng Worker.
+    \item \textbf{Bảng thống kê Rule Hit:} Hiển thị danh sách luật SPI đang chạy, hành động tương ứng (\texttt{FORWARD}, \texttt{DROP}, \texttt{LOG}) và số lần khớp luật (hit count) được cập nhật liên tục.
+\end{itemize}
+Giao diện còn hiển thị tốc độ xử lý tức thời (Mpps và Gbps), đường dẫn file log và hỗ trợ phím nóng hiển thị số liệu ở dạng dễ đọc (tùy chọn \texttt{--}\allowbreak\texttt{human-}\allowbreak\texttt{readable}).
+
+\subsection{Các tham số dòng lệnh và Cấu hình hệ thống}
+Hệ thống cung cấp khả năng tùy biến sâu thông qua bộ phân tích đối số dòng lệnh mở rộng:
+\begin{table}[H]
+    \centering
+    \caption{Các tham số cấu hình dòng lệnh của FlowTable}
+    \label{tab:cli_args}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{lll>{\raggedright\arraybackslash}p{8cm}}
+        \toprule
+        \textbf{Tham số ngắn} & \textbf{Tham số dài} & \textbf{Giá trị mặc định} & \textbf{Chức năng} \\
+        \midrule
+        \texttt{-w} & \texttt{--workers} & 4 & Số lượng Worker Core chuyên dụng xử lý gói tin. \\
+        \texttt{-c} & \texttt{--capacity} & 1.048.576 & Sức chứa tối đa của Flow Table (phải là lũy thừa của 2). \\
+        \texttt{-t} & \texttt{--timeout} & 5 & Thời gian hết hạn của kết nối không hoạt động (giây). \\
+        \texttt{-r} & \texttt{--rules} & \texttt{"rules.cfg"} & Đường dẫn tới tập tin cấu hình luật lọc gói SPI. \\
+        \texttt{-g} & \texttt{--log-file} & \texttt{"flowtable.log"} & Đường dẫn tới tập tin ghi log hoạt động. \\
+        \texttt{-p} & \texttt{--port} & 0 & Cổng mạng DPDK hoạt động cần giám sát. \\
+        \texttt{-h} & \texttt{--human-readable} & Tắt & Tự động định dạng các số liệu thống kê trong TUI thành dạng dễ đọc (K, M, G). \\
+        \texttt{-n} & \texttt{--headless} / \texttt{--no-tui} & Tắt & Chạy ở chế độ headless (ghi log ra stderr hoặc file) không dùng giao diện TUI. \\
+        N/A & \texttt{--ring-size} & 4096 & Sức chứa hàng đợi Ring Buffer giữa Dispatcher và Worker. \\
+        N/A & \texttt{--pool-size} & 262.144 & Kích thước vùng nhớ mbuf mempool cho các Core xử lý. \\
+        N/A & \texttt{--cache-size} & 128 & Kích thước cache nội bộ của mempool trên mỗi lcore. \\
+        N/A & \texttt{--age-chunks} & 64 & Số lượng khóa tối đa được duyệt quét dọn dẹp trong mỗi chu kỳ. \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+% ==========================================
+% KẾT QUẢ THỬ NGHIỆM VÀ ĐÁNH GIÁ
+% ==========================================
+\newpage
+\chapter{Kết quả thực hiện và đánh giá}
+
+Môi trường benchmark được thiết lập trên máy chủ vật lý chạy hệ điều hành Arch Linux với CPU Intel Core i9-13900HX, sử dụng trình ảo hóa QEMU/KVM để chạy máy ảo khách Ubuntu 22.04 LTS. Máy ảo được cấp phát 4 vCPUs chuyên dụng cho Worker Cores, 1 vCPU cho Dispatcher và 1 GB Hugepage bộ nhớ vật lý.
+
+\section{Ma trận Kịch bản Kiểm thử Chức năng}
+Hệ thống xây dựng bộ kịch bản kiểm thử toàn diện từ đơn vị đến tích hợp đa luồng để bảo đảm tính ổn định tuyệt đối (Bảng \ref{tab:test_matrix}).
+
+\begin{table}[H]
+    \centering
+    \caption{Ma trận kịch bản kiểm thử chức năng}
+    \label{tab:test_matrix}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{l>{\raggedright\arraybackslash}p{5cm}lll}
+        \toprule
+        \textbf{Mã Kịch bản} & \textbf{Mục tiêu kiểm thử} & \textbf{Lệnh thực thi} & \textbf{Kết quả kỳ vọng} & \textbf{Trạng thái} \\
+        \midrule
+        TC-01 & Khởi tạo EAL hợp lệ và không hợp lệ & \texttt{./build/test\_eal} & Trả về 0 khi đúng, lỗi khi cấu hình sai & \textbf{PASSED} \\
+        TC-02 & Trích xuất 5-Tuple protocol & \texttt{./build/test\_flow\_table} & Parse đúng protocol, NBO format & \textbf{PASSED} \\
+        TC-03 & Vòng đời connection Flow Table & \texttt{./build/test\_flow\_table} & Chèn mới, cập nhật timestamp, xóa thành công & \textbf{PASSED} \\
+        TC-04 & Thu hồi RCU QSBR an toàn & \texttt{./build/test\_flow\_table} & Giải phóng bộ nhớ sau quiescent state & \textbf{PASSED} \\
+        TC-05 & Phân tải IP Source đồng đều & \texttt{./build/test\_dispatcher} & Phân phối gói tin trúng Worker cục bộ & \textbf{PASSED} \\
+        TC-06 & Match quy tắc lọc SPI Wildcard & \texttt{./build/test\_spi\_rules} & Kết quả so khớp chính xác First-Match & \textbf{PASSED} \\
+        TC-07 & Reload nóng Double-Buffering & \texttt{./build/test\_spi\_rules} & Cập nhật luật không rò rỉ bộ nhớ & \textbf{PASSED} \\
+        TC-08 & Cân bằng tải đa luồng Worker & \texttt{./build/test\_integration} & Độ lệch tải giữa các cores $\le 1.2\%$ & \textbf{PASSED} \\
+        TC-09 & Flow Aging dưới tải song song & \texttt{./build/test\_integration} & Xóa kết nối hết hạn khi processing đang chạy & \textbf{PASSED} \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\section{Kết quả Benchmark Hiệu năng}
+Đo lường thông lượng xử lý và công suất dọn dẹp luồng của hệ thống dưới tải được so sánh trực tiếp tại Bảng \ref{tab:bench_perf}. Kịch bản đo đạc 10K Flows được khởi chạy bằng câu lệnh sau (với dung lượng Hugepages cấp phát là 1 GB và các tham số khác ở chế độ mặc định):
+\begin{verbatim}
+./build/flowtable -l 0-4 \
+  --vdev="net_pcap0,rx_pcap=traffic_10k.pcap,infinite_rx=1" \
+  -- --ring-size 65536 --pool-size 65536
+\end{verbatim}
+Đối với kịch bản 100K Flows, các tham số \texttt{--ring-size} và \texttt{--pool-size} được nâng lên giá trị $2^{18} = 262144$ để tránh tràn hàng đợi khi số lượng kết nối đồng thời lớn:
+\begin{verbatim}
+./build/flowtable -l 0-4 \
+  --vdev="net_pcap0,rx_pcap=traffic_100k.pcap,infinite_rx=1" \
+  -- --ring-size 262144 --pool-size 262144
+\end{verbatim}
+
+\begin{table}[H]
+    \centering
+    \caption{Số liệu đo đạc thực tế hiệu năng hệ thống}
+    \label{tab:bench_perf}
+    \resizebox{\textwidth}{!}{
+    \begin{tabular}{lrr}
+        \toprule
+        \textbf{Chỉ số đo đạc} & \textbf{Kịch bản 10K Flows} & \textbf{Kịch bản 100K Flows} \\
+        \midrule
+        Tập dữ liệu PCAP & \texttt{traffic\_10k.pcap} & \texttt{traffic\_100k.pcap} \\
+        Số lượng luồng active tối đa & 10.000 & 100.000 \\
+        Thông lượng gói tin xử lý & \textbf{18.80 Mpps} & \textbf{11.80 Mpps} \\
+        Thông lượng băng thông & \textbf{6.50 Gbps} & \textbf{4.10 Gbps} \\
+        Công suất xử lý Worker trung bình & 4.70 Mpps/core & 2.93 Mpps/core \\
+        Tải xử lý CPU trên các nhân & 100\% (4 Cores) & 100\% (4 Cores) \\
+        Tốc độ tạo luồng (\textit{Flow Creation Rate}) & 36.645 flows/sec & 50.000 flows/sec \\
+        Tốc độ xóa luồng (\textit{Flow Deletion Rate}) & 120.000 flows/sec & 120.000 flows/sec \\
+        Tỷ lệ rớt gói tin ở hàng đợi & 0.0\% & 0.0\% \\
+        Trạng thái rò rỉ bộ nhớ mbuf & \textbf{Không phát hiện} & \textbf{Không phát hiện} \\
+        \bottomrule
+    \end{tabular}
+    }
+\end{table}
+
+\section{Phân tích chuyên sâu về bộ đệm phần cứng}
+Hiện tượng thông lượng sụt giảm từ \textbf{18.8 Mpps} xuống còn \textbf{11.8 Mpps} ($\approx 37.2\%$) khi quy mô tăng từ 10.000 flows lên 100.000 flows xuất phát từ các giới hạn vật lý của CPU cache hierarchy:
+\begin{enumerate}
+    \item \textbf{L2 Cache hit rate cực đại ở 10K flows:}
+    Mỗi phần tử \texttt{flow\_entry\_t} chiếm $48$ bytes. Tổng footprint của 10.000 flows là:
+    $$10.000 \times 48 \text{ bytes} = 480 \text{ KB}$$
+    Dung lượng này nằm vừa trong L2 cache của CPU. Do đó các memory access của Worker Core luôn được phục vụ từ cache với độ trễ cực thấp ($\approx 4$--$10$ cycles).
+    \item \textbf{L3 Cache Thrashing ở 100K flows:}
+    Khi tăng số lượng flow lên 100.000, working set tăng vọt lên:
+    $$100.000 \times 48 \text{ bytes} = 4.8 \text{ MB}$$
+    Con số này vượt quá L2 cache cục bộ và gây áp lực lên L3 cache (shared giữa các core). Tình trạng cache thrashing liên tục xảy ra, buộc Worker phải truy xuất thẳng DRAM thông qua memory bus. Độ trễ DRAM access cao hơn nhiều so với cache, làm chậm chu kỳ xử lý gói tin và kéo sụt 37.2\% throughput của hệ thống.
+\end{enumerate}
+
+% ==========================================
+% KẾT LUẬN
+% ==========================================
+\newpage
+\chapter{Kết luận}
+
+\section{Đóng góp khoa học và thực tiễn của dự án}
+Dự án Mini-Project FlowTable đã nghiên cứu, hiện thực và tối ưu thành công một hệ thống quản lý kết nối luồng mạng hiệu năng cao chạy hoàn toàn trên nền tảng DPDK người dùng (User Space Kernel Bypass). Hệ thống đã chứng minh tính khả thi vượt trội trong việc giải quyết các thách thức tối ưu hóa Data Plane đa nhân vật lý:
+\begin{itemize}
+    \item Triển khai thành công mô hình phân chia nhiệm vụ Dispatcher-Worker, gán cứng CPU lõi thực thi và trao đổi thông tin gói tin thông qua các hàng đợi vòng không khóa (Lock-free SPSC Rings), tối ưu hóa độ trễ truyền gói xuống dưới mức $150$ ns.
+    \item Hiện thực hóa bảng quản lý kết nối Flow Table tốc độ cao bằng cấu trúc băm \texttt{rte\_hash} với chế độ đọc ghi đồng thời không khóa (\textit{Lock-free Read-Write Concurrency}) và thiết kế cấu trúc bản ghi tinh gọn 48-byte, loại bỏ sự phụ thuộc vào các chỉ thị căn chỉnh phức tạp mà vẫn giữ nguyên hiệu năng xử lý.
+    \item Áp dụng bộ thu hồi bộ nhớ trì hoãn \texttt{rte\_rcu\_qsbr} an toàn, thiết lập cơ chế dọn dẹp luồng hết hạn bất đồng bộ quét phân đoạn (\textit{chunk-based scanning}) và giải thuật iterate-then-delete hai bước. Điều này loại bỏ hoàn toàn các lỗi bộ nhớ nghiêm trọng (như Use-After-Free) và hiện tượng nghẽn do lock contention.
+    \item Hiện thực hóa Rule Engine Shallow Packet Inspection (SPI) lọc gói tin dạng Wildcard hỗ trợ cơ chế nạp lại tập luật nóng tại runtime không gián đoạn dịch vụ (\textit{Zero-Downtime Rule Reload}) thông qua kỹ thuật Double-Buffering nguyên tử.
+    \item Giao diện giám sát Terminal UI trực quan cung cấp khả năng quan sát telemetry hệ thống theo thời gian thực mà không gây ảnh hưởng tới Fast-path.
+\end{itemize}
+
+\section{Hạn chế kỹ thuật hiện tại}
+Mặc dù hệ thống đáp ứng xuất sắc các chỉ tiêu kỹ thuật đề ra, một số hạn chế vẫn tồn tại do điều kiện ảo hóa thử nghiệm:
+\begin{itemize}
+    \item \textbf{Phụ thuộc Driver ảo net\_pcap PMD:} Việc đọc ghi gói tin từ file PCAP PMD ảo tiêu tốn một lượng chu kỳ xung nhịp CPU đáng kể của Dispatcher Core để đọc file từ đĩa, làm hạn chế thông lượng so với việc chạy trên card NIC Intel/Mellanox vật lý hỗ trợ DMA trực tiếp.
+    \item \textbf{Dispatcher Software Bottleneck:} Hệ thống chưa cấu hình tính năng phân băm phần cứng (Hardware RSS Offloading) trên NIC, buộc Dispatcher Thread trên lõi 0 phải thực hiện parse và băm IP phần mềm cho từng gói tin, giới hạn khả năng mở rộng khi số lượng Worker Cores tăng lên.
+    \item \textbf{Cơ chế Autoscaling tĩnh:} Việc tăng giảm số lượng Worker threads hiện hành yêu cầu phải restart ứng dụng để khởi tạo lại cấu trúc hàng đợi Ring Buffer, chưa hỗ trợ co giãn động tại runtime (\textit{Dynamic Worker Scaling}).
+\end{itemize}
+
+\section{Hướng phát triển và Lộ trình tương lai}
+Để đưa hệ thống FlowTable đạt chuẩn production viễn thông lõi, lộ trình phát triển tiếp theo bao gồm:
+\begin{enumerate}
+    \item \textbf{Tích hợp Hardware RSS Offloading:} Cấu hình cơ chế RSS trực tiếp trên card NIC vật lý để phân tải các luồng kết nối vào các RX queue độc lập tương ứng với các Worker Cores. Kỹ thuật này sẽ loại bỏ hoàn toàn Dispatcher Core phần mềm, giải phóng 100\% CPU của lõi 0.
+    \item \textbf{Phát triển Dynamic Worker Scaling:} Thiết kế cơ chế điều phối thread động (\textit{dynamic thread pooling}). Hệ thống sẽ tự động tắt bớt hoặc kích hoạt thêm các Worker Cores dựa trên số liệu thông lượng Mpps đo đạc tức thời trong TUI nhằm tối ưu hóa điện năng tiêu thụ của máy chủ.
+    \item \textbf{Mở rộng DPI và phân loại Layer 7:} Phát triển bộ lọc SPI thành bộ phân tích gói tin sâu (Deep Packet Inspection), hỗ trợ parse các trường thông tin ứng dụng Layer 7 như HTTP Request URI hay TLS SNI để phục vụ các bài toán tường lửa thế hệ mới (Next-Gen Firewall).
+    \item \textbf{Triển khai Containerized Cluster:} Đóng gói ứng dụng thành Container chạy trên nền tảng Kubernetes thông qua SR-IOV CNI, tiến hành benchmark đo đạc hiệu năng phân tán trên nhiều máy chủ vật lý.
+\end{enumerate}
+
+\newpage
+\begin{thebibliography}{99}
+    \bibitem{dpdkdoc} DPDK Development Team, \textit{Data Plane Development Kit Reference Manual}, Online Document, Available: \url{https://doc.dpdk.org/}.
+    \bibitem{rfc2544} S. Bradner, J. McQuaid, \textit{Benchmarking Methodology for Network Interconnect Devices}, RFC 2544, March 1999.
+    \bibitem{lockfree} Maurice Herlihy, Nir Shavit, \textit{The Art of Multiprocessor Programming}, Morgan Kaufmann, 2008.
+\end{thebibliography}
+\end{document}
+
